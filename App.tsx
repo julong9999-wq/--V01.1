@@ -3,7 +3,7 @@ import { ProductGroup, ProductItem, OrderGroup, OrderItem, ViewState } from './t
 import { INITIAL_PRODUCT_GROUPS, INITIAL_PRODUCT_ITEMS, INITIAL_ORDER_GROUPS, INITIAL_ORDER_ITEMS } from './constants';
 import { getNextGroupId, getNextItemId, getNextOrderGroupId, calculateProductStats, formatCurrency, generateUUID, cleanProductName } from './utils';
 import ProductForm from './components/ProductForm';
-import { Trash2, Edit, Plus, Package, ShoppingCart, List, BarChart2, ChevronRight, ChevronDown, User, Box, X, Calculator, Download, Save, Wallet, ArrowUpCircle, ArrowDownCircle, Grid, FileText, Filter } from 'lucide-react';
+import { Trash2, Edit, Plus, Package, ShoppingCart, List, BarChart2, ChevronRight, ChevronDown, User, Box, X, Calculator, Download, Save, Wallet, ArrowUpCircle, ArrowDownCircle, Grid } from 'lucide-react';
 import { db } from './firebase';
 import { 
   collection, 
@@ -15,8 +15,7 @@ import {
   where, 
   writeBatch,
   setDoc,
-  getDocs,
-  deleteDoc
+  getDocs
 } from 'firebase/firestore';
 
 const DEFAULT_INCOME_DATA = {
@@ -331,10 +330,11 @@ const App: React.FC = () => {
   const handleDeleteGroup = async (e: React.MouseEvent, groupId: string) => {
     e.stopPropagation();
     
-    // 防呆：檢查該類別下是否有商品
-    const hasItems = productItems.some(i => i.groupId === groupId);
-    if (hasItems) {
-        alert(`禁止刪除：此類別「${groupId}」內尚有 ${productItems.filter(i => i.groupId === groupId).length} 個商品。\n\n請先清空該類別下的所有商品，才能刪除類別。`);
+    // 防呆機制 A: 檢查該類別下是否有商品
+    // Safety check: Ensure no products exist in this group
+    const groupItems = productItems.filter(i => i.groupId === groupId);
+    if (groupItems.length > 0) {
+        alert(`無法刪除：此類別「${groupId}」內尚有 ${groupItems.length} 個商品。\n\n請先清空該類別下的所有商品，才能刪除類別。`);
         return;
     }
 
@@ -345,7 +345,8 @@ const App: React.FC = () => {
         const q = query(collection(db, 'productGroups'), where('id', '==', groupId));
         const snapshot = await getDocs(q);
         snapshot.forEach(d => batch.delete(d.ref));
-        // Also ensure no orphan items (though check passed, double safety)
+        
+        // Safety Clean (even though check passed, good to be thorough)
         const qItems = query(collection(db, 'productItems'), where('groupId', '==', groupId));
         const snapshotItems = await getDocs(qItems);
         snapshotItems.forEach(d => batch.delete(d.ref));
@@ -388,16 +389,16 @@ const App: React.FC = () => {
   const handleDeleteProduct = async (e: React.MouseEvent, groupId: string, itemId: string) => {
     e.stopPropagation();
 
-    // 防呆：檢查是否有訂單使用此商品
-    // orderItems 包含所有歷史訂單資料
+    // 防呆機制 B: 檢查是否有訂單使用此商品
+    // Safety Check: Check if any orders reference this product
     const relatedOrders = orderItems.filter(
         o => o.productGroupId === groupId && o.productItemId === itemId
     );
 
     if (relatedOrders.length > 0) {
-        // 取出一筆作為範例提示
-        const exampleBuyer = relatedOrders[0].buyer || '未知買家';
-        alert(`禁止刪除：此商品已被 ${relatedOrders.length} 筆訂單引用 (例如: ${exampleBuyer})。\n\n請先移除相關訂單資料，才能刪除商品。`);
+        const exampleOrder = relatedOrders[0];
+        const exampleBuyer = exampleOrder.buyer || '未知買家';
+        alert(`無法刪除：此商品已被 ${relatedOrders.length} 筆訂單引用。\n\n範例：${exampleOrder.orderGroupId} - ${exampleBuyer}\n\n請先移除相關訂單資料，才能刪除商品。`);
         return;
     }
 
@@ -499,7 +500,9 @@ const App: React.FC = () => {
   );
 
   const renderIncomeView = () => {
-    const { totalJpy, totalDomestic, totalHandling, totalSales, avgRateCost, packaging, cardFeeInput, actualIntlShip, cardCharge, netProfit, profitRate, cardFeeRate } = incomeStats;
+    // Only destructure variables that are actually used in the field labels or non-input displays.
+    // Variables used in input 'value' props come from 'incomeData' state, not 'incomeStats'.
+    const { totalJpy, totalDomestic, totalHandling, totalSales, avgRateCost, netProfit, profitRate, cardFeeRate } = incomeStats;
     const Field = ({ label, value, isInput = false, onChange, colorClass = "text-slate-700", prefix = "" }: any) => (
       <div className="flex flex-col gap-0.5">
         <span className="text-[10px] font-bold text-slate-400 ml-1">{label}</span>
