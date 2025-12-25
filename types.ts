@@ -37,4 +37,4 @@ export interface OrderItem {
   isSelfAbsorbed?: boolean; // For "自己吸收" logic if needed, inferred from buyer name in OCR
 }
 
-export type ViewState = 'products' | 'orders' | 'details' | 'analysis' | 'income';
+export type ViewState = 'products' | 'orders' | 'details' | 'analysis' | 'deposits' | 'income';

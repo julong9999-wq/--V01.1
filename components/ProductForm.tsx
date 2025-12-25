@@ -72,7 +72,7 @@ const ProductForm: React.FC<Props> = ({ group, onSave, onCancel, initialData, ne
   const labelClass = "block text-xs font-bold text-slate-500 mb-1";
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] bg-white flex flex-col animate-in fade-in duration-200">
       <div className="w-full max-w-lg mx-auto flex flex-col h-full bg-white shadow-2xl">
         
         {/* Header - Fixed Top */}
