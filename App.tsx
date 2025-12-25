@@ -3,7 +3,7 @@ import { ProductGroup, ProductItem, OrderGroup, OrderItem, ViewState } from './t
 import { INITIAL_PRODUCT_GROUPS, INITIAL_PRODUCT_ITEMS, INITIAL_ORDER_GROUPS, INITIAL_ORDER_ITEMS } from './constants';
 import { getNextGroupId, getNextItemId, getNextOrderGroupId, calculateProductStats, formatCurrency, generateUUID } from './utils';
 import ProductForm from './components/ProductForm';
-import { Trash2, Edit, Plus, Package, ShoppingCart, List, BarChart2, ChevronRight, ChevronDown, User, Box, X, Calculator, Download, Save } from 'lucide-react';
+import { Trash2, Edit, Plus, Package, ShoppingCart, List, BarChart2, ChevronRight, ChevronDown, User, Box, X, Calculator, Download } from 'lucide-react';
 
 // --- LocalStorage Helper ---
 const loadFromStorage = <T,>(key: string, defaultValue: T): T => {
