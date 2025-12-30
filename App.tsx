@@ -71,6 +71,28 @@ const OrderBatchButton = ({ id, active, onClick }: any) => (
     </button>
 );
 
+// 3. Income Field Component (Extracted to prevent re-render focus loss)
+const IncomeField = ({ label, value, isInput = false, onChange, colorClass = "text-slate-700", prefix = "" }: any) => (
+  <div className="flex flex-col w-full">
+    <span className="text-sm font-bold text-slate-500 ml-1 mb-0.5">{label}</span>
+    <div className={`relative flex items-center px-2 h-10 rounded-lg border-2 ${isInput ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'} overflow-hidden w-full`}>
+       {isInput ? (
+         <input 
+            type={typeof value === 'number' ? 'number' : 'text'}
+            inputMode={typeof value === 'number' ? 'decimal' : 'text'} 
+            step="any" 
+            className={`w-full bg-transparent outline-none font-mono font-bold text-xl text-right ${colorClass}`} 
+            value={value} 
+            onChange={onChange} 
+            onFocus={(e) => e.target.select()} 
+         />
+       ) : (
+         <div className={`w-full font-mono font-bold text-xl text-right truncate ${colorClass}`}>{prefix}{value}</div>
+       )}
+    </div>
+  </div>
+);
+
 const App: React.FC = () => {
   // --- State ---
   const [view, setView] = useState<ViewState>('products');
@@ -1075,27 +1097,7 @@ const App: React.FC = () => {
   const renderIncomeView = () => {
     const { totalJpy, totalDomestic, totalHandling, totalSales, avgRateCost, netProfit, profitRate, cardFeeRate } = incomeStats;
     
-    // Helper for Income Fields
-    const Field = ({ label, value, isInput = false, onChange, colorClass = "text-slate-700", prefix = "" }: any) => (
-      <div className="flex flex-col w-full">
-        <span className="text-sm font-bold text-slate-500 ml-1 mb-0.5">{label}</span>
-        <div className={`relative flex items-center px-2 h-10 rounded-lg border-2 ${isInput ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'} overflow-hidden w-full`}>
-           {isInput ? (
-             <input 
-                type="number" // Force number type for inputs in this view
-                inputMode="decimal" // Better mobile keyboard
-                step="any" // Allow decimals
-                className={`w-full bg-transparent outline-none font-mono font-bold text-xl text-right ${colorClass}`} 
-                value={value} 
-                onChange={onChange} 
-                onFocus={(e) => e.target.select()} // QoL: Select all on focus
-             />
-           ) : (
-             <div className={`w-full font-mono font-bold text-xl text-right truncate ${colorClass}`}>{prefix}{value}</div>
-           )}
-        </div>
-      </div>
-    );
+    // IncomeField is now defined outside to prevent re-renders losing focus
 
     return (
         <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
@@ -1113,42 +1115,42 @@ const App: React.FC = () => {
                 {/* Card 1: Base Costs & Inputs */}
                 <div className="bg-white p-2.5 rounded-xl border border-slate-300 shadow-sm flex flex-col gap-2 shrink-0">
                     <div className="grid grid-cols-3 gap-2">
-                        <Field label="日幣總計" value={formatCurrency(totalJpy)} />
-                        <Field label="境內運總計" value={formatCurrency(totalDomestic)} />
-                        <Field label="手續費總計" value={formatCurrency(totalHandling)} />
+                        <IncomeField label="日幣總計" value={formatCurrency(totalJpy)} />
+                        <IncomeField label="境內運總計" value={formatCurrency(totalDomestic)} />
+                        <IncomeField label="手續費總計" value={formatCurrency(totalHandling)} />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                        <Field label="商品收入" value={formatCurrency(totalSales)} colorClass="text-blue-600" />
-                        <Field label="包材收入 (輸入)" value={incomeData.packagingRevenue} isInput onChange={(e:any) => setIncomeData({...incomeData, packagingRevenue: e.target.value})} colorClass="text-blue-600" />
+                        <IncomeField label="商品收入" value={formatCurrency(totalSales)} colorClass="text-blue-600" />
+                        <IncomeField label="包材收入 (輸入)" value={incomeData.packagingRevenue} isInput onChange={(e:any) => setIncomeData({...incomeData, packagingRevenue: e.target.value})} colorClass="text-blue-600" />
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                        <Field label="刷卡費 (成本)" value={incomeData.cardCharge} isInput onChange={(e:any) => setIncomeData({...incomeData, cardCharge: e.target.value})} />
-                        <Field label="刷卡手續費" value={incomeData.cardFee} isInput onChange={(e:any) => setIncomeData({...incomeData, cardFee: e.target.value})} />
-                        <Field label="國際運費" value={incomeData.intlShipping} isInput onChange={(e:any) => setIncomeData({...incomeData, intlShipping: e.target.value})} />
+                        <IncomeField label="刷卡費 (成本)" value={incomeData.cardCharge} isInput onChange={(e:any) => setIncomeData({...incomeData, cardCharge: e.target.value})} />
+                        <IncomeField label="刷卡手續費" value={incomeData.cardFee} isInput onChange={(e:any) => setIncomeData({...incomeData, cardFee: e.target.value})} />
+                        <IncomeField label="國際運費" value={incomeData.intlShipping} isInput onChange={(e:any) => setIncomeData({...incomeData, intlShipping: e.target.value})} />
                     </div>
                 </div>
 
                 {/* Card 2: Profit Analysis */}
                 <div className="bg-white p-2.5 rounded-xl border border-slate-300 shadow-sm flex flex-col gap-2 shrink-0">
                     <div className="grid grid-cols-2 gap-2">
-                        <Field label="平均匯率" value={avgRateCost.toFixed(3)} colorClass="text-purple-600" />
-                        <Field label="手續費佔比" value={`${cardFeeRate.toFixed(2)}%`} colorClass="text-purple-600" />
+                        <IncomeField label="平均匯率" value={avgRateCost.toFixed(3)} colorClass="text-purple-600" />
+                        <IncomeField label="手續費佔比" value={`${cardFeeRate.toFixed(2)}%`} colorClass="text-purple-600" />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                        <Field label="總利潤" value={formatCurrency(netProfit)} colorClass="text-emerald-600" />
-                        <Field label="利潤率 ROI" value={`${profitRate.toFixed(2)}%`} colorClass="text-emerald-600" />
+                        <IncomeField label="總利潤" value={formatCurrency(netProfit)} colorClass="text-emerald-600" />
+                        <IncomeField label="利潤率 ROI" value={`${profitRate.toFixed(2)}%`} colorClass="text-emerald-600" />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                        <Field label="爸爸 (20%)" value={formatCurrency(Math.round(netProfit * 0.2))} colorClass="text-indigo-600" />
-                        <Field label="妹妹 (80%)" value={formatCurrency(Math.round(netProfit * 0.8))} colorClass="text-rose-500" />
+                        <IncomeField label="爸爸 (20%)" value={formatCurrency(Math.round(netProfit * 0.2))} colorClass="text-indigo-600" />
+                        <IncomeField label="妹妹 (80%)" value={formatCurrency(Math.round(netProfit * 0.8))} colorClass="text-rose-500" />
                     </div>
                 </div>
 
                 {/* Card 3: Receivables & Notes */}
                 <div className="bg-white p-2.5 rounded-xl border border-slate-300 shadow-sm flex flex-col justify-center shrink-0">
                     <div className="grid grid-cols-12 gap-2">
-                        <div className="col-span-4"><Field label="爸爸應收" value={incomeData.dadReceivable} isInput onChange={(e:any) => setIncomeData({...incomeData, dadReceivable: e.target.value})} /></div>
-                        <div className="col-span-8"><Field label="收款說明" value={incomeData.paymentNote || ''} isInput onChange={(e:any) => setIncomeData({...incomeData, paymentNote: e.target.value})} /></div>
+                        <div className="col-span-4"><IncomeField label="爸爸應收" value={incomeData.dadReceivable} isInput onChange={(e:any) => setIncomeData({...incomeData, dadReceivable: e.target.value})} /></div>
+                        <div className="col-span-8"><IncomeField label="收款說明" value={incomeData.paymentNote || ''} isInput onChange={(e:any) => setIncomeData({...incomeData, paymentNote: e.target.value})} /></div>
                     </div>
                 </div>
              </div>
