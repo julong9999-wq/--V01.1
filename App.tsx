@@ -3,7 +3,7 @@ import { ProductGroup, ProductItem, OrderGroup, OrderItem, ViewState } from './t
 import { INITIAL_PRODUCT_GROUPS, INITIAL_PRODUCT_ITEMS, INITIAL_ORDER_GROUPS, INITIAL_ORDER_ITEMS } from './constants';
 import { getNextGroupId, getNextItemId, getNextOrderGroupId, calculateProductStats, formatCurrency, generateUUID, cleanProductName } from './utils';
 import ProductForm from './components/ProductForm';
-import { Trash2, Edit, Plus, Package, ShoppingCart, List, BarChart2, ChevronRight, ChevronDown, User, Box, X, Calculator, Download, Save, Wallet, ArrowUpCircle, ArrowDownCircle, Grid } from 'lucide-react';
+import { Trash2, Edit, Plus, Package, ShoppingCart, List, BarChart2, ChevronRight, ChevronDown, User, Box, X, Calculator, Download, Save, Wallet, ArrowUpCircle, ArrowDownCircle, Grid, PieChart } from 'lucide-react';
 import { db } from './firebase';
 import { 
   collection, 
@@ -35,6 +35,7 @@ const ActionButton = ({ icon: Icon, label, onClick, active = false, variant = 'p
     let bgClass = "bg-blue-700 hover:bg-blue-600 border-blue-600"; // Primary
     if (variant === 'success') bgClass = "bg-emerald-600 hover:bg-emerald-500 border-emerald-500";
     if (variant === 'danger') bgClass = "bg-rose-600 hover:bg-rose-500 border-rose-500";
+    if (variant === 'warning') bgClass = "bg-amber-600 hover:bg-amber-500 border-amber-500"; // Added warning variant
     if (active) bgClass = "bg-yellow-500 text-blue-900 border-yellow-400 font-bold hover:bg-yellow-400";
     
     return (
@@ -102,6 +103,9 @@ const App: React.FC = () => {
 
   const [editingOrderItem, setEditingOrderItem] = useState<OrderItem | null>(null);
   const [isOrderEntryOpen, setIsOrderEntryOpen] = useState(false);
+  
+  // State for Income Analysis Modal
+  const [showIncomeAnalysisModal, setShowIncomeAnalysisModal] = useState(false);
 
   // View Specific States
   const [detailSortMode, setDetailSortMode] = useState<'buyer' | 'product'>('buyer');
@@ -109,7 +113,10 @@ const App: React.FC = () => {
   // Updated: Analysis mode tracks 'expenditure' or 'income'
   const [analysisMode, setAnalysisMode] = useState<'expenditure' | 'income'>('income');
   
+  // Current Batch Manual Data
   const [incomeData, setIncomeData] = useState(DEFAULT_INCOME_DATA);
+  // All Batches Manual Data (for Global Analysis)
+  const [allIncomeSettings, setAllIncomeSettings] = useState<Record<string, typeof DEFAULT_INCOME_DATA>>({});
 
   // --- Firestore Listeners ---
   useEffect(() => {
@@ -153,18 +160,26 @@ const App: React.FC = () => {
         }
     });
 
-    return () => { unsubGroups(); unsubItems(); unsubOrderGroups(); unsubOrderItems(); };
+    // NEW: Listen to all income settings for global analysis
+    const unsubAllIncome = onSnapshot(collection(db, 'incomeSettings'), (snapshot) => {
+        const settingsMap: Record<string, typeof DEFAULT_INCOME_DATA> = {};
+        snapshot.docs.forEach(doc => {
+            settingsMap[doc.id] = doc.data() as typeof DEFAULT_INCOME_DATA;
+        });
+        setAllIncomeSettings(settingsMap);
+    });
+
+    return () => { unsubGroups(); unsubItems(); unsubOrderGroups(); unsubOrderItems(); unsubAllIncome(); };
   }, []);
 
+  // Update local incomeData when selected group changes or global settings update
   useEffect(() => {
-    if (!selectedOrderGroup) { setIncomeData(DEFAULT_INCOME_DATA); return; }
-    setIncomeData(DEFAULT_INCOME_DATA);
-    const unsubIncome = onSnapshot(doc(db, 'incomeSettings', selectedOrderGroup), (docSnap) => {
-        if (docSnap.exists()) setIncomeData(docSnap.data() as any);
-        else setIncomeData(DEFAULT_INCOME_DATA);
-    });
-    return () => unsubIncome();
-  }, [selectedOrderGroup]);
+    if (selectedOrderGroup && allIncomeSettings[selectedOrderGroup]) {
+        setIncomeData(allIncomeSettings[selectedOrderGroup]);
+    } else {
+        setIncomeData(DEFAULT_INCOME_DATA);
+    }
+  }, [selectedOrderGroup, allIncomeSettings]);
 
   // --- Computed ---
   const filteredProducts = useMemo(() => {
@@ -190,7 +205,7 @@ const App: React.FC = () => {
         });
   }, [orderItems, selectedOrderGroup]);
 
-  // --- Income Stats Calculation ---
+  // --- Income Stats Calculation (Main View) ---
   const incomeStats = useMemo(() => {
     let totalSales = 0, totalBaseCost = 0, totalJpy = 0, totalDomestic = 0, totalHandling = 0;
     let rateSum = 0, rateCount = 0;
@@ -211,14 +226,22 @@ const App: React.FC = () => {
 
     const avgRateCost = rateCount > 0 ? rateSum / rateCount : 0.205;
     
-    // Manual inputs
-    const cardCharge = incomeData.cardCharge || 0;
-    const packaging = incomeData.packagingRevenue || 0;
-    const cardFeeInput = incomeData.cardFee || 0;
-    const actualIntlShip = incomeData.intlShipping || 0;
+    // Manual inputs from global state for the active group
+    const currentSettings = selectedOrderGroup ? (allIncomeSettings[selectedOrderGroup] || DEFAULT_INCOME_DATA) : DEFAULT_INCOME_DATA;
     
+    const packaging = currentSettings.packagingRevenue || 0;
+    const cardCharge = currentSettings.cardCharge || 0;
+    const cardFeeInput = currentSettings.cardFee || 0;
+    const actualIntlShip = currentSettings.intlShipping || 0; // Manual override/addition
+    
+    // Logic updated to match user request:
+    // Revenue = Sales + Packaging
     const totalRevenue = totalSales + packaging;
-    const totalExpenses = cardCharge + actualIntlShip + cardFeeInput;
+    
+    // Expense = Card Charge (Cost) + Card Fee + Intl Ship
+    // Note: User formula says "支出總計" = "刷卡費"+"刷卡手續費"+"國際運費"
+    const totalExpenses = cardCharge + cardFeeInput + actualIntlShip;
+    
     const netProfit = totalRevenue - totalExpenses;
     const profitRate = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
     const cardFeeRate = cardCharge > 0 ? (cardFeeInput / cardCharge) * 100 : 0;
@@ -228,7 +251,7 @@ const App: React.FC = () => {
         avgRateCost, packaging, cardFeeInput, actualIntlShip, cardCharge,
         totalRevenue, totalExpenses, netProfit, profitRate, cardFeeRate
     };
-  }, [activeOrderItems, productItems, incomeData]);
+  }, [activeOrderItems, productItems, allIncomeSettings, selectedOrderGroup]);
 
   // --- Actions ---
   const downloadCSV = (filename: string, headers: string[], rows: (string | number)[][]) => {
@@ -351,6 +374,7 @@ const App: React.FC = () => {
 
   const handleManualSaveIncome = async () => {
     if (!selectedOrderGroup) return;
+    // Update local state is handled by input, but we save to Firestore here
     await setDoc(doc(db, 'incomeSettings', selectedOrderGroup), incomeData);
     alert('儲存成功');
   };
@@ -816,6 +840,109 @@ const App: React.FC = () => {
         </div>
     );
   };
+  
+  const renderIncomeAnalysisModal = () => {
+    // 1. Calculate stats per Order Group (Batch)
+    const batchStats = orderGroups.map(group => {
+        const itemsInBatch = orderItems.filter(i => i.orderGroupId === group.id);
+        
+        // Manual settings for this specific batch
+        const settings = allIncomeSettings[group.id] || DEFAULT_INCOME_DATA;
+        const packaging = settings.packagingRevenue || 0;
+        const cardCharge = settings.cardCharge || 0;
+        const cardFee = settings.cardFee || 0;
+        const intlShip = settings.intlShipping || 0;
+
+        let totalItemSales = 0;
+
+        itemsInBatch.forEach(item => {
+            const product = productItems.find(p => p.groupId === item.productGroupId && p.id === item.productItemId);
+            if (product) {
+                // "收入金額" = Input Price * Quantity
+                totalItemSales += product.inputPrice * item.quantity;
+            }
+        });
+
+        // "收入總計" = ("收入金額" + "包材收入")
+        const batchIncome = totalItemSales + packaging;
+        
+        // “支出總計” ="刷卡費"+"刷卡手續費"+"國際運費"
+        const batchExpense = cardCharge + cardFee + intlShip;
+        
+        // "利潤"=("收入金額""+"包材收入")-("刷卡費"+"刷卡手續費"+"國際運費" )
+        const batchProfit = batchIncome - batchExpense;
+
+        return {
+            id: group.id,
+            income: batchIncome,
+            expense: batchExpense,
+            profit: batchProfit,
+            itemCount: itemsInBatch.length
+        };
+    }).sort((a, b) => b.id.localeCompare(a.id)); // Sort descending (newest first)
+
+    // 2. Grand Totals
+    const totalIncome = batchStats.reduce((acc, cur) => acc + cur.income, 0);
+    const totalExpense = batchStats.reduce((acc, cur) => acc + cur.expense, 0);
+    const totalProfit = batchStats.reduce((acc, cur) => acc + cur.profit, 0);
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-white flex flex-col animate-in fade-in duration-200">
+            <div className="px-4 py-3 border-b border-blue-900 bg-blue-950 flex justify-between items-center shrink-0">
+                <h3 className="text-xl font-bold text-white">收支分析詳細表</h3>
+                <button onClick={() => setShowIncomeAnalysisModal(false)} className="text-blue-300 hover:text-white"><X size={28} /></button>
+            </div>
+
+            <div className="flex-1 overflow-auto bg-slate-50 flex flex-col">
+                {/* Summary Section (Placed at Top) */}
+                <div className="bg-white p-4 shadow-sm border-b border-slate-200 shrink-0">
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                            <div className="text-blue-600 text-sm font-bold mb-1">收入總計</div>
+                            <div className="text-2xl font-mono font-bold text-blue-800">{formatCurrency(totalIncome)}</div>
+                        </div>
+                        <div className="bg-rose-50 p-3 rounded-xl border border-rose-100">
+                            <div className="text-rose-600 text-sm font-bold mb-1">支出總計</div>
+                            <div className="text-2xl font-mono font-bold text-rose-800">{formatCurrency(totalExpense)}</div>
+                        </div>
+                        <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                            <div className="text-emerald-600 text-sm font-bold mb-1">總利潤</div>
+                            <div className="text-2xl font-mono font-bold text-emerald-700">{formatCurrency(totalProfit)}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-100 sticky top-0 shadow-sm z-10 border-b border-slate-200">
+                            <tr>
+                                <th className="p-3 text-sm font-bold text-slate-600">訂單項</th>
+                                <th className="p-3 text-right text-sm font-bold text-blue-600">收入總計</th>
+                                <th className="p-3 text-right text-sm font-bold text-rose-600">支出總計</th>
+                                <th className="p-3 text-right text-sm font-bold text-emerald-600">利潤</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                            {batchStats.map((batch) => (
+                                <tr key={batch.id} className="hover:bg-slate-50">
+                                    <td className="p-3">
+                                        <div className="font-bold text-slate-800 text-xl font-mono">{batch.id}</div>
+                                        <div className="text-xs text-slate-400 font-bold mt-0.5">{batch.itemCount} 筆訂單</div>
+                                    </td>
+                                    <td className="p-3 text-right font-mono font-bold text-blue-700 text-lg">{formatCurrency(batch.income)}</td>
+                                    <td className="p-3 text-right font-mono font-bold text-rose-600 text-lg">{formatCurrency(batch.expense)}</td>
+                                    <td className={`p-3 text-right font-mono font-bold text-lg ${batch.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                        {formatCurrency(batch.profit)}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+  };
 
   // Restored Original Blue Header
   const Header = ({ title, actions, showOrderSelector = false }: any) => (
@@ -961,6 +1088,7 @@ const App: React.FC = () => {
         <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
              <Header title="收支計算" showOrderSelector={true} actions={
                 <>
+                  <ActionButton icon={PieChart} label="分析" onClick={() => setShowIncomeAnalysisModal(true)} variant="warning" />
                   <ActionButton icon={Save} label="儲存" onClick={handleManualSaveIncome} />
                   <ActionButton icon={Download} label="匯出" onClick={handleExportIncome} variant="success" />
                 </>
@@ -1011,6 +1139,7 @@ const App: React.FC = () => {
                     </div>
                 </div>
              </div>
+             {showIncomeAnalysisModal && renderIncomeAnalysisModal()}
         </div>
     );
   };
