@@ -587,103 +587,194 @@ const App: React.FC = () => {
 
   const renderDetailsView = () => {
     if (!selectedOrderGroup) return;
-    const map = new Map<string, { id: string, label: string, totalQty: number, totalPrice: number, items: any[] }>();
-    activeOrderItems.forEach(item => {
-          const product = productItems.find(p => p.groupId === item.productGroupId && p.id === item.productItemId);
-          if (!product) return; 
-          const total = product.inputPrice * item.quantity;
-          let key = ''; let label = '';
-          if (detailSortMode === 'buyer') { key = item.buyer; label = item.buyer; } 
-          else { key = item.productGroupId; const group = productGroups.find(g => g.id === item.productGroupId); label = group ? group.name : item.productGroupId; }
-          if (!map.has(key)) map.set(key, { id: key, label, totalQty: 0, totalPrice: 0, items: [] });
-          const group = map.get(key)!;
-          group.totalQty += item.quantity;
-          group.totalPrice += total;
-          group.items.push({ ...item, product, total });
-    });
-    const groupedData = Array.from(map.values()).sort((a, b) => {
-        if (detailSortMode === 'product') return a.id.localeCompare(b.id);
-        return a.label.localeCompare(b.label, 'zh-TW');
-    });
 
-    return (
-        <div className="flex-1 overflow-y-auto p-2 pb-24 space-y-2">
-            {groupedData.map((g, i) => (
-                <div key={i} className="bg-white rounded-lg shadow-sm border border-slate-200">
-                    <div className="bg-slate-50 p-2 flex justify-between items-center border-b border-slate-100">
-                        <div className="font-bold text-blue-800 text-xl">{g.label || '(未以此分類)'}</div>
-                        <div className="text-base text-slate-500 font-mono flex items-center gap-3">
-                            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold">{g.totalQty} 件</span>
-                            <span className="text-emerald-600 font-bold text-xl">{formatCurrency(g.totalPrice)}</span>
+    // Refactored Logic:
+    // 1. Group by Main Entity (Buyer or Product)
+    // 2. Inside Main Entity, Group by "Product Variant"
+    //    - For Buyer View: Variant = ProductID (GroupId+ItemId). We sum up totals here.
+    //    - For Product View: Variant = ProductID + Description. We sum up totals here.
+
+    const subTableStyle = "text-slate-500 font-normal text-base";
+
+    if (detailSortMode === 'buyer') {
+        // Group by Buyer
+        const buyerMap = new Map<string, { buyer: string, totalTwd: number, products: Map<string, { 
+            product: ProductItem, 
+            totalPrice: number, 
+            items: OrderItem[] 
+        }> }>();
+
+        activeOrderItems.forEach(item => {
+            const product = productItems.find(p => p.groupId === item.productGroupId && p.id === item.productItemId);
+            if (!product) return;
+            
+            const buyer = item.buyer;
+            if (!buyerMap.has(buyer)) buyerMap.set(buyer, { buyer, totalTwd: 0, products: new Map() });
+            
+            const buyerEntry = buyerMap.get(buyer)!;
+            const productKey = `${item.productGroupId}-${item.productItemId}`; // Unique Product ID
+            
+            if (!buyerEntry.products.has(productKey)) {
+                buyerEntry.products.set(productKey, { product, totalPrice: 0, items: [] });
+            }
+            
+            const prodEntry = buyerEntry.products.get(productKey)!;
+            const lineTotal = product.inputPrice * item.quantity;
+            
+            prodEntry.items.push(item);
+            prodEntry.totalPrice += lineTotal;
+            buyerEntry.totalTwd += lineTotal;
+        });
+
+        const sortedBuyers = Array.from(buyerMap.values()).sort((a, b) => a.buyer.localeCompare(b.buyer, 'zh-TW'));
+
+        return (
+            <div className="flex-1 overflow-y-auto p-2 pb-24 space-y-3">
+                {sortedBuyers.map((b, i) => (
+                    <div key={i} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                        {/* Header: Buyer Name */}
+                        <div className="bg-blue-50 p-3 flex justify-between items-center border-b border-blue-100">
+                            <div className="flex items-center gap-2">
+                                <User size={20} className="text-blue-600"/>
+                                <span className="font-bold text-xl text-blue-900">{b.buyer}</span>
+                            </div>
+                            <span className="font-mono font-bold text-xl text-blue-700">{formatCurrency(b.totalTwd)}</span>
+                        </div>
+                        
+                        {/* List of Products for this Buyer */}
+                        <div className="divide-y divide-slate-100">
+                            {Array.from(b.products.values()).sort((x, y) => x.product.id.localeCompare(y.product.id)).map((p, pIdx) => (
+                                <div key={pIdx} className="p-0">
+                                    {/* Row 1: Product Item + Name | Total Price */}
+                                    <div className="p-2 flex justify-between items-center bg-slate-50/30">
+                                        <div className="font-bold text-lg text-slate-800">
+                                            <span className="inline-block bg-slate-200 text-slate-600 text-sm px-1.5 rounded mr-2 align-middle">{p.product.id}</span>
+                                            {cleanProductName(p.product.name)}
+                                        </div>
+                                        <div className="font-mono font-bold text-lg text-slate-700">
+                                            {formatCurrency(p.totalPrice)}
+                                        </div>
+                                    </div>
+
+                                    {/* Row 2: Description | Quantity | Unit Price (Grey Thin) */}
+                                    <div className="px-4 pb-2">
+                                        {p.items.map((item, itemIdx) => (
+                                            <div key={itemIdx} className={`flex justify-between items-center py-1 ${subTableStyle} border-t border-dashed border-slate-100 first:border-t-0`}>
+                                                <div className="flex-1 truncate pr-2">
+                                                     {item.description || '單一款式'}
+                                                </div>
+                                                <div className="flex gap-4 font-mono shrink-0">
+                                                    <span>x{item.quantity}</span>
+                                                    <span>${p.product.inputPrice}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
-                    <div>
-                        {detailSortMode === 'buyer' ? (
-                            (() => {
-                                const subGroups = new Map<string, { id: string, name: string, total: number, items: any[] }>();
-                                g.items.forEach(item => {
-                                    const gid = item.productGroupId;
-                                    if (!subGroups.has(gid)) {
-                                        const groupName = productGroups.find(p => p.id === gid)?.name || '';
-                                        subGroups.set(gid, { id: gid, name: groupName, total: 0, items: [] });
-                                    }
-                                    const sub = subGroups.get(gid)!; sub.items.push(item); sub.total += item.total;
-                                });
-                                return Array.from(subGroups.values()).sort((a, b) => a.id.localeCompare(b.id)).map((sub, subIdx) => (
-                                    <div key={subIdx} className="border-b border-slate-100 last:border-0">
-                                        <div className="bg-slate-50/50 p-2 flex justify-between items-center"><div className="font-bold text-slate-800 text-lg pl-1.5 border-l-4 border-blue-400">{sub.name}</div><div className="font-mono font-bold text-emerald-600 text-lg">{formatCurrency(sub.total)}</div></div>
-                                        {sub.items.sort((x:any, y:any) => x.productItemId.localeCompare(y.productItemId)).map((item, itemIdx) => {
-                                            const product = item.product; const productName = cleanProductName(product?.name || ''); const desc = item.description || ''; const row2Main = desc ? `${productName} : ${desc}` : productName;
-                                            return (
-                                                <div key={itemIdx} className="p-2 pl-4 flex justify-between items-center text-sm border-t border-slate-50 first:border-t-0">
-                                                    <div className="flex-1 truncate pr-2 text-slate-700 font-medium text-lg">{row2Main}</div>
-                                                    <div className="flex items-center gap-2 font-mono shrink-0 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm"><span className="text-slate-400 scale-90">x</span><span className="font-bold text-slate-800 text-base">{item.quantity}</span><div className="w-px h-4 bg-slate-300 mx-1"></div><span className="text-slate-600 font-bold text-base">${item.product.inputPrice}</span></div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                ));
-                            })()
-                        ) : (
-                            (() => {
-                                const subGroups = new Map<string, { productItemId: string, productName: string, description: string, total: number, unitPrice: number, items: any[] }>();
-                                g.items.forEach(item => {
-                                    const product = item.product; const productName = cleanProductName(product?.name || ''); const description = item.description || ''; const uniqueKey = `${item.productItemId}_${description}`;
-                                    if (!subGroups.has(uniqueKey)) subGroups.set(uniqueKey, { productItemId: item.productItemId, productName, description, total: 0, unitPrice: product.inputPrice, items: [] });
-                                    const sub = subGroups.get(uniqueKey)!; sub.items.push(item); sub.total += item.total;
-                                });
-                                const sortedSubGroups = Array.from(subGroups.values()).sort((a, b) => { const idDiff = a.productItemId.localeCompare(b.productItemId); if (idDiff !== 0) return idDiff; return a.description.localeCompare(b.description, 'zh-TW'); });
-                                return sortedSubGroups.map((sub, subIdx) => {
-                                    const row1Main = sub.description ? `${sub.productName} : ${sub.description}` : sub.productName;
-                                    return (
-                                        <div key={subIdx} className="border-b border-slate-100 last:border-0">
-                                            <div className="bg-slate-50/50 p-2 flex justify-between items-center"><div className="font-bold text-slate-800 text-lg pl-1.5 border-l-4 border-emerald-400 truncate pr-2">{row1Main}</div><div className="font-mono font-bold text-emerald-600 text-lg shrink-0">{formatCurrency(sub.total)}</div></div>
-                                            {sub.items.map((item, itemIdx) => (
-                                                <div key={itemIdx} className="p-2 pl-4 flex justify-between items-center text-sm border-t border-slate-50 first:border-t-0"><div className="flex-1 truncate pr-2 text-slate-700 font-medium text-lg">{item.buyer}</div><div className="flex items-center gap-2 font-mono shrink-0 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm"><div className="flex items-center gap-1"><span className="text-slate-400 scale-90 text-sm">數量</span><span className="font-bold text-slate-800 text-base">{item.quantity}</span></div><div className="w-px h-4 bg-slate-300 mx-1"></div><div className="flex items-center gap-1"><span className="text-slate-400 scale-90 text-sm">單價</span><span className="font-bold text-slate-600 text-base">{sub.unitPrice}</span></div></div></div>
-                                            ))}
+                ))}
+                {sortedBuyers.length === 0 && <div className="text-center py-10 text-slate-400 text-lg">無資料</div>}
+            </div>
+        );
+
+    } else {
+        // Sort by Product (Product View)
+        // Group by Unique Product (ID + Description)
+        const productMap = new Map<string, { 
+            product: ProductItem, 
+            description: string, 
+            totalQty: number,
+            totalPrice: number,
+            buyers: OrderItem[] 
+        }>();
+
+        activeOrderItems.forEach(item => {
+            const product = productItems.find(p => p.groupId === item.productGroupId && p.id === item.productItemId);
+            if (!product) return;
+
+            // Unique Key for Product View: ID + Description
+            const key = `${item.productGroupId}-${item.productItemId}-${item.description || ''}`;
+            
+            if (!productMap.has(key)) {
+                productMap.set(key, { 
+                    product, 
+                    description: item.description, 
+                    totalQty: 0, 
+                    totalPrice: 0, 
+                    buyers: [] 
+                });
+            }
+
+            const entry = productMap.get(key)!;
+            const lineTotal = product.inputPrice * item.quantity;
+            entry.totalQty += item.quantity;
+            entry.totalPrice += lineTotal;
+            entry.buyers.push(item);
+        });
+
+        const sortedProducts = Array.from(productMap.values()).sort((a, b) => {
+             const idDiff = a.product.id.localeCompare(b.product.id);
+             if (idDiff !== 0) return idDiff;
+             return (a.description || '').localeCompare(b.description || '');
+        });
+
+        return (
+            <div className="flex-1 overflow-y-auto p-2 pb-24 space-y-3">
+                {sortedProducts.map((p, i) => {
+                     const productName = cleanProductName(p.product.name);
+                     const fullName = p.description ? `${productName} : ${p.description}` : productName;
+
+                     return (
+                        <div key={i} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                             {/* Row 1: Product Full Name | Total Price */}
+                             <div className="bg-emerald-50 p-3 flex justify-between items-center border-b border-emerald-100">
+                                <div className="font-bold text-lg text-slate-800 pr-2 leading-tight">
+                                    <span className="inline-block bg-emerald-200 text-emerald-800 text-sm px-1.5 rounded mr-2 align-middle">{p.product.id}</span>
+                                    {fullName}
+                                </div>
+                                <div className="font-mono font-bold text-xl text-emerald-700 shrink-0">
+                                    {formatCurrency(p.totalPrice)}
+                                </div>
+                             </div>
+
+                             {/* Row 2: Buyer | Qty | Unit Price (Grey Thin) */}
+                             <div className="px-3 py-1">
+                                {p.buyers.map((item, itemIdx) => (
+                                    <div key={itemIdx} className={`flex justify-between items-center py-1.5 ${subTableStyle} border-b border-slate-50 last:border-0`}>
+                                        <div className="flex-1 truncate font-medium">
+                                            {item.buyer}
                                         </div>
-                                    );
-                                });
-                            })()
-                        )}
-                    </div>
-                </div>
-            ))}
-            {groupedData.length === 0 && <div className="text-center py-10 text-slate-400 text-lg">無資料</div>}
-        </div>
-    );
+                                        <div className="flex gap-4 font-mono shrink-0">
+                                            <span>x{item.quantity}</span>
+                                            <span>${p.product.inputPrice}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                     );
+                })}
+                {sortedProducts.length === 0 && <div className="text-center py-10 text-slate-400 text-lg">無資料</div>}
+            </div>
+        );
+    }
   };
 
-  // Completely Revised Analysis View - Table Format with Larger Fonts
+  // Completely Revised Analysis View - Table Format with Larger Fonts & Grouping Logic
   const renderAnalysisView = () => {
-    // 1. Aggregate Data
-    const groupMap = new Map<string, Map<string, {
+    // Grouping Logic:
+    // Main Table: Product Group (A01, A02...)
+    // Sub Table: Product Items (01, 02...)
+    
+    const groupMap = new Map<string, { group: ProductGroup, items: Map<string, {
         item: ProductItem,
         qty: number,
         jpyTotal: number,
         domesticTotal: number,
         twdTotal: number
-    }>>();
+    }> }>();
 
     let totalQty = 0;
     let grandTotalJPY = 0;
@@ -694,14 +785,16 @@ const App: React.FC = () => {
         const { productGroupId, productItemId, quantity } = orderItem;
         const product = productItems.find(p => p.groupId === productGroupId && p.id === productItemId);
         if (!product) return;
+        const group = productGroups.find(g => g.id === productGroupId);
+        if (!group) return;
 
         if (!groupMap.has(productGroupId)) {
-            groupMap.set(productGroupId, new Map());
+            groupMap.set(productGroupId, { group, items: new Map() });
         }
-        const itemMap = groupMap.get(productGroupId)!;
+        const groupEntry = groupMap.get(productGroupId)!;
 
-        if (!itemMap.has(productItemId)) {
-            itemMap.set(productItemId, {
+        if (!groupEntry.items.has(productItemId)) {
+            groupEntry.items.set(productItemId, {
                 item: product,
                 qty: 0,
                 jpyTotal: 0,
@@ -710,7 +803,7 @@ const App: React.FC = () => {
             });
         }
 
-        const stats = itemMap.get(productItemId)!;
+        const stats = groupEntry.items.get(productItemId)!;
         stats.qty += quantity;
         const lineJpy = product.jpyPrice * quantity;
         const lineDom = product.domesticShip * quantity;
@@ -727,6 +820,7 @@ const App: React.FC = () => {
     });
 
     const sortedGroupIds = Array.from(groupMap.keys()).sort();
+    const subTableStyle = "text-slate-500 font-normal text-base"; // Grey Thin
 
     return (
         <div className="flex-1 overflow-hidden flex flex-col bg-white">
@@ -734,7 +828,7 @@ const App: React.FC = () => {
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm border-b border-slate-200">
                         <tr>
-                            <th className="p-3 text-base font-bold text-slate-600 uppercase tracking-wider">商品名稱</th>
+                            <th className="p-3 text-base font-bold text-slate-600 uppercase tracking-wider">商品項目 (類別)</th>
                             <th className="p-3 text-right text-base font-bold text-slate-600 uppercase tracking-wider w-16">數量</th>
                             {analysisMode === 'expenditure' ? (
                                 <>
@@ -748,41 +842,44 @@ const App: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {sortedGroupIds.map(gid => {
-                            const groupName = productGroups.find(g => g.id === gid)?.name || gid;
-                            const itemMap = groupMap.get(gid)!;
-                            const sortedItemIds = Array.from(itemMap.keys()).sort();
+                            const entry = groupMap.get(gid)!;
+                            const sortedItemIds = Array.from(entry.items.keys()).sort();
                             
                             return (
                                 <React.Fragment key={gid}>
-                                    {/* Group Header Row */}
-                                    <tr className="bg-slate-100/80">
+                                    {/* Main Table Row: Product Group */}
+                                    <tr className="bg-slate-100/80 border-t border-slate-200 first:border-t-0">
                                         <td colSpan={analysisMode === 'expenditure' ? 4 : 3} className="px-3 py-2">
                                             <span className="font-mono text-sm font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded mr-2">{gid}</span>
-                                            <span className="font-bold text-slate-700 text-lg">{groupName}</span>
+                                            <span className="font-bold text-slate-800 text-lg">{entry.group.name}</span>
                                         </td>
                                     </tr>
-                                    {/* Items */}
+                                    
+                                    {/* Sub Table Rows: Product Items (Grey Thin) */}
                                     {sortedItemIds.map(iid => {
-                                        const stat = itemMap.get(iid)!;
+                                        const stat = entry.items.get(iid)!;
                                         return (
                                             <tr key={`${gid}-${iid}`} className="hover:bg-slate-50 transition-colors">
-                                                <td className="p-3 text-lg font-bold text-slate-800 max-w-[180px]">
-                                                    <div className="line-clamp-2 leading-tight">{cleanProductName(stat.item.name)}</div>
+                                                <td className={`p-3 pl-8 ${subTableStyle}`}>
+                                                    <div className="line-clamp-2 leading-tight">
+                                                        <span className="font-mono text-xs mr-1 opacity-70">{iid}</span>
+                                                        {cleanProductName(stat.item.name)}
+                                                    </div>
                                                 </td>
-                                                <td className="p-3 text-right text-lg font-bold text-slate-900 font-mono">
+                                                <td className={`p-3 text-right font-mono ${subTableStyle}`}>
                                                     {stat.qty}
                                                 </td>
                                                 {analysisMode === 'expenditure' ? (
                                                     <>
-                                                        <td className="p-3 text-right text-lg font-bold text-amber-700 font-mono">
+                                                        <td className={`p-3 text-right font-mono ${subTableStyle}`}>
                                                             ¥{stat.jpyTotal}
                                                         </td>
-                                                        <td className="p-3 text-right text-lg font-bold text-orange-700 font-mono">
+                                                        <td className={`p-3 text-right font-mono ${subTableStyle}`}>
                                                             ¥{stat.domesticTotal}
                                                         </td>
                                                     </>
                                                 ) : (
-                                                    <td className="p-3 text-right text-lg font-bold text-emerald-600 font-mono">
+                                                    <td className={`p-3 text-right font-mono ${subTableStyle}`}>
                                                         {formatCurrency(stat.twdTotal)}
                                                     </td>
                                                 )}
