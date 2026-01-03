@@ -76,11 +76,11 @@ const OrderBatchButton = ({ id, active, onClick }: any) => (
     </button>
 );
 
-// 3. Income Field Component (Optimized Typography: 12px thin label, 16px bold content)
+// 3. Income Field Component (Optimized Typography: 12px black thin label, 16px bold content)
 const IncomeField = ({ label, value, isInput = false, onChange, colorClass = "text-slate-700", prefix = "" }: any) => (
   <div className="flex flex-col w-full">
-    {/* Label: 12px gray thin */}
-    <span className="text-[12px] font-light text-slate-500 ml-1 mb-0.5">{label}</span>
+    {/* Label: 12px BLACK thin */}
+    <span className="text-[12px] font-light text-black ml-1 mb-0.5">{label}</span>
     <div className={`relative flex items-center px-2 h-10 rounded-lg border ${isInput ? 'bg-white border-blue-200' : 'bg-slate-50 border-slate-100'} overflow-hidden w-full`}>
        {isInput ? (
          <input 
@@ -1014,11 +1014,10 @@ const App: React.FC = () => {
                   <ActionButton icon={Download} label="匯出" onClick={handleExportIncome} variant="success" />
                 </>
              }/>
-             <div className="flex-1 p-2 flex flex-col gap-2 overflow-hidden justify-start">
+             <div className="flex-1 p-2 flex flex-col gap-2 overflow-y-auto justify-start">
                 
                 {/* Status Selector - Custom Radio Look */}
                 <div className="bg-white p-2.5 rounded-xl border border-slate-300 shadow-sm flex flex-col gap-1 shrink-0">
-                    <span className="text-[12px] font-light text-slate-500 ml-1">狀態</span>
                     <div className="flex gap-2">
                         {statusOptions.map(opt => (
                             <button 
