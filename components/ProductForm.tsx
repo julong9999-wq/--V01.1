@@ -16,7 +16,7 @@ interface Props {
 const parseNum = (val: string | number) => parseFloat(String(val)) || 0;
 
 // Reusing the style from App.tsx via simple class string for now to avoid circular deps or complex props
-const btnBaseClass = "h-10 px-3 min-w-[90px] rounded-lg border shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 text-lg font-bold tracking-wide";
+const btnBaseClass = "h-9 px-3 min-w-[80px] rounded-lg border shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 text-sm font-bold tracking-wide";
 const btnPrimaryClass = "bg-blue-700 hover:bg-blue-600 border-blue-600 text-white";
 const btnOutlineClass = "bg-white border-slate-300 text-slate-600 hover:bg-slate-50";
 
@@ -187,11 +187,11 @@ const ProductForm: React.FC<Props> = ({ group, onSave, onCancel, initialData, ne
         {/* Footer */}
         <div className="p-4 border-t border-slate-200 bg-white flex gap-3 shrink-0">
           <button onClick={onCancel} className={`${btnBaseClass} ${btnOutlineClass} flex-1`}>
-             <X size={20} strokeWidth={2.5} />
+             <X size={18} strokeWidth={2.5} />
              <span>取消</span>
           </button>
           <button onClick={handleSave} disabled={!formState.name || !formState.jpyPrice || !formState.inputPrice} className={`${btnBaseClass} ${btnPrimaryClass} flex-1 disabled:opacity-50`}>
-             <Save size={20} strokeWidth={2.5} />
+             <Save size={18} strokeWidth={2.5} />
              <span>儲存</span>
           </button>
         </div>

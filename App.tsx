@@ -25,17 +25,19 @@ const DEFAULT_INCOME_DATA = {
     cardFee: 0,
     intlShipping: 0,
     dadReceivable: 0,
-    paymentNote: ''
+    paymentNote: '',
+    status: 'preorder' // 'preorder' (Red), 'processing' (Green), 'closed' (Yellow)
 };
 
 // --- UI Components ---
 
 // 1. Standard Action Button (Unified Design)
-// Rules: Height h-10, Text-lg, Icon + 2 Chars
+// Rules: Height h-9 (Small), Text-sm (14px), Font-Bold, Icon (16px) + 2 Chars
 const ActionButton = ({ icon: Icon, label, onClick, active = false, variant = 'primary', className = '' }: any) => {
     let colorClass = "bg-blue-700 hover:bg-blue-600 border-blue-600 text-white"; // Primary
     if (variant === 'success') colorClass = "bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white";
-    if (variant === 'danger') colorClass = "bg-rose-600 hover:bg-rose-500 border-rose-500 text-white";
+    // if (variant === 'danger') colorClass = "bg-rose-600 hover:bg-rose-500 border-rose-500 text-white"; // User cancelled Red Delete
+    if (variant === 'danger') colorClass = "bg-white border-slate-300 text-slate-600 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300"; // Reverted to outline-ish with subtle hover
     if (variant === 'warning') colorClass = "bg-amber-600 hover:bg-amber-500 border-amber-500 text-white";
     if (variant === 'outline') colorClass = "bg-white border-slate-300 text-slate-600 hover:bg-slate-50";
     if (active) colorClass = "bg-yellow-400 text-blue-900 border-yellow-400 font-bold hover:bg-yellow-300";
@@ -44,25 +46,25 @@ const ActionButton = ({ icon: Icon, label, onClick, active = false, variant = 'p
         <button 
             onClick={onClick}
             className={`
-                h-10 px-3 min-w-[90px] rounded-lg border shadow-sm transition-all active:scale-95
+                h-9 px-3 min-w-[80px] rounded-lg border shadow-sm transition-all active:scale-95
                 flex items-center justify-center gap-1.5
-                text-lg font-bold tracking-wide
+                text-sm font-bold tracking-wide
                 ${colorClass}
                 ${className}
             `}
         >
-            <Icon size={20} strokeWidth={2.5} />
+            <Icon size={18} strokeWidth={2.5} />
             <span>{label}</span>
         </button>
     );
 };
 
-// 2. Order Batch Selector Button (Kept visually compatible but allows flexible text for IDs)
+// 2. Order Batch Selector Button (Unified Size)
 const OrderBatchButton = ({ id, active, onClick }: any) => (
     <button 
         onClick={onClick}
         className={`
-            h-10 min-w-[90px] px-2 rounded-lg border font-mono font-bold text-lg tracking-tight transition-all
+            h-9 min-w-[80px] px-2 rounded-lg border font-mono font-bold text-sm tracking-tight transition-all
             flex items-center justify-center shrink-0 shadow-sm
             ${active 
                 ? 'bg-yellow-400 text-blue-900 border-yellow-300 shadow-md scale-105' 
@@ -257,13 +259,8 @@ const App: React.FC = () => {
     const cardFeeInput = parseFloat(String(incomeData.cardFee || 0)) || 0;
     const actualIntlShip = parseFloat(String(incomeData.intlShipping || 0)) || 0;
     
-    // Logic updated to match user request:
-    // Revenue = Sales + Packaging
     const totalRevenue = totalSales + packaging;
-    
-    // Expense = Card Charge (Cost) + Card Fee + Intl Ship
     const totalExpenses = cardCharge + cardFeeInput + actualIntlShip;
-    
     const netProfit = totalRevenue - totalExpenses;
     const profitRate = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
     const cardFeeRate = cardCharge > 0 ? (cardFeeInput / cardCharge) * 100 : 0;
@@ -273,7 +270,7 @@ const App: React.FC = () => {
         avgRateCost, packaging, cardFeeInput, actualIntlShip, cardCharge,
         totalRevenue, totalExpenses, netProfit, profitRate, cardFeeRate
     };
-  }, [activeOrderItems, productItems, incomeData]); // Depend on local incomeData
+  }, [activeOrderItems, productItems, incomeData]);
 
   // --- Actions ---
   const downloadCSV = (filename: string, headers: string[], rows: (string | number)[][]) => {
@@ -464,7 +461,6 @@ const App: React.FC = () => {
     downloadCSV(`購買明細_${selectedOrderGroup}`, headers, rows);
   };
 
-  // Updated Export Analysis Logic to respect modes
   const handleExportAnalysis = () => {
     if (!selectedOrderGroup) return;
     
@@ -783,12 +779,12 @@ const App: React.FC = () => {
                     </tbody>
                     <tfoot className="bg-blue-100 text-blue-900 sticky bottom-0 z-10 shadow-lg border-t-2 border-blue-200">
                         <tr>
-                            <td className="p-3 font-bold text-sm text-right">總計</td>
-                            <td className="p-3 text-right font-bold font-mono text-sm">{totalQty}</td>
+                            <td className="p-3 font-bold text-base text-right">總計</td>
+                            <td className="p-3 text-right font-bold font-mono text-base">{totalQty}</td>
                             {analysisMode === 'expenditure' ? (
-                                <><td className="p-3 text-right font-bold font-mono text-sm text-blue-900">¥{grandTotalJPY}</td><td className="p-3 text-right font-bold font-mono text-sm text-blue-900">¥{grandTotalDomestic}</td></>
+                                <><td className="p-3 text-right font-bold font-mono text-base text-blue-900">¥{grandTotalJPY}</td><td className="p-3 text-right font-bold font-mono text-base text-blue-900">¥{grandTotalDomestic}</td></>
                             ) : (
-                                <td className="p-3 text-right font-bold font-mono text-sm text-blue-900">{formatCurrency(grandTotalTWD)}</td>
+                                <td className="p-3 text-right font-bold font-mono text-base text-blue-900">{formatCurrency(grandTotalTWD)}</td>
                             )}
                         </tr>
                     </tfoot>
@@ -842,52 +838,96 @@ const App: React.FC = () => {
         const cardCharge = settings.cardCharge || 0;
         const cardFee = settings.cardFee || 0;
         const intlShip = settings.intlShipping || 0;
+        const status = settings.status || 'preorder'; 
+
         let totalItemSales = 0;
         itemsInBatch.forEach(item => {
             const product = productItems.find(p => p.groupId === item.productGroupId && p.id === item.productItemId);
             if (product) totalItemSales += product.inputPrice * item.quantity;
         });
+        
         const batchIncome = totalItemSales + packaging;
         const batchExpense = cardCharge + cardFee + intlShip;
         const batchProfit = batchIncome - batchExpense;
-        return { id: group.id, income: batchIncome, expense: batchExpense, profit: batchProfit, itemCount: itemsInBatch.length };
+
+        return { id: group.id, income: batchIncome, expense: batchExpense, profit: batchProfit, status };
     }).sort((a, b) => b.id.localeCompare(a.id));
 
     const totalIncome = batchStats.reduce((acc, cur) => acc + cur.income, 0);
     const totalExpense = batchStats.reduce((acc, cur) => acc + cur.expense, 0);
     const totalProfit = batchStats.reduce((acc, cur) => acc + cur.profit, 0);
 
+    const handleToggleStatus = async (groupId: string, currentStatus: string) => {
+        const statusOrder = ['preorder', 'processing', 'closed']; 
+        const nextIndex = (statusOrder.indexOf(currentStatus) + 1) % 3;
+        const nextStatus = statusOrder[nextIndex];
+        await setDoc(doc(db, 'incomeSettings', groupId), { status: nextStatus }, { merge: true });
+    };
+
+    const getStatusColor = (status: string) => {
+        switch(status) {
+            case 'processing': return 'bg-emerald-500 shadow-emerald-200'; // Green - 進行
+            case 'closed': return 'bg-yellow-400 shadow-yellow-200'; // Yellow - 結案
+            default: return 'bg-rose-500 shadow-rose-200'; // Red - 預購
+        }
+    };
+
+    const subTableStyle = "text-sm font-light text-slate-600";
+
     return (
         <div className="fixed inset-0 z-[100] bg-white flex flex-col animate-in fade-in duration-200">
             <div className="px-4 py-3 border-b border-blue-900 bg-blue-950 flex justify-between items-center shrink-0">
-                <h3 className="text-xl font-bold text-white">收支分析詳細表</h3>
+                <h3 className="text-xl font-bold text-white">收支分析表</h3>
                 <button onClick={() => setShowIncomeAnalysisModal(false)} className="text-blue-300 hover:text-white"><X size={28} /></button>
             </div>
-            <div className="flex-1 overflow-auto bg-slate-50 flex flex-col">
-                <div className="bg-white p-4 shadow-sm border-b border-slate-200 shrink-0">
-                    <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-100"><div className="text-blue-600 text-sm font-bold mb-1">收入總計</div><div className="text-xl font-mono font-bold text-blue-800">{formatCurrency(totalIncome)}</div></div>
-                        <div className="bg-rose-50 p-3 rounded-xl border border-rose-100"><div className="text-rose-600 text-sm font-bold mb-1">支出總計</div><div className="text-xl font-mono font-bold text-rose-800">{formatCurrency(totalExpense)}</div></div>
-                        <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100"><div className="text-emerald-600 text-sm font-bold mb-1">總利潤</div><div className="text-xl font-mono font-bold text-emerald-700">{formatCurrency(totalProfit)}</div></div>
+            
+            {/* Summary Box (Top - 16px Bold) */}
+            <div className="bg-white p-4 shadow-sm border-b border-slate-200 shrink-0">
+                <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex flex-col items-center">
+                        <div className="text-blue-600 text-xs font-bold mb-0.5">收入總計</div>
+                        <div className="text-base font-bold font-mono text-blue-900">{formatCurrency(totalIncome)}</div>
+                    </div>
+                    <div className="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col items-center">
+                        <div className="text-rose-600 text-xs font-bold mb-0.5">支出總計</div>
+                        <div className="text-base font-bold font-mono text-rose-900">{formatCurrency(totalExpense)}</div>
+                    </div>
+                    <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex flex-col items-center">
+                        <div className="text-emerald-600 text-xs font-bold mb-0.5">利潤</div>
+                        <div className="text-base font-bold font-mono text-emerald-700">{formatCurrency(totalProfit)}</div>
                     </div>
                 </div>
-                <div className="flex-1 overflow-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-slate-100 sticky top-0 shadow-sm z-10 border-b border-slate-200">
-                            <tr><th className="p-3 text-base font-bold text-slate-600">訂單項</th><th className="p-3 text-right text-base font-bold text-blue-600">收入總計</th><th className="p-3 text-right text-base font-bold text-rose-600">支出總計</th><th className="p-3 text-right text-base font-bold text-emerald-600">利潤</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 bg-white">
-                            {batchStats.map((batch) => (
-                                <tr key={batch.id} className="hover:bg-slate-50">
-                                    <td className="p-3"><div className="font-bold text-slate-800 text-lg font-mono">{batch.id}</div><div className="text-sm text-slate-400 font-bold mt-0.5">{batch.itemCount} 筆訂單</div></td>
-                                    <td className="p-3 text-right font-mono font-bold text-blue-700 text-lg">{formatCurrency(batch.income)}</td>
-                                    <td className="p-3 text-right font-mono font-bold text-rose-600 text-lg">{formatCurrency(batch.expense)}</td>
-                                    <td className={`p-3 text-right font-mono font-bold text-lg ${batch.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(batch.profit)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+            </div>
+
+            <div className="flex-1 overflow-auto bg-slate-50">
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-100 sticky top-0 shadow-sm z-10 border-b border-slate-200">
+                        <tr>
+                            <th className="p-3 text-sm font-bold text-slate-500 w-16 text-center">狀態</th>
+                            <th className="p-3 text-sm font-bold text-slate-500">訂單項</th>
+                            <th className="p-3 text-right text-sm font-bold text-blue-600">收入總計</th>
+                            <th className="p-3 text-right text-sm font-bold text-rose-600">支出總計</th>
+                            <th className="p-3 text-right text-sm font-bold text-emerald-600">利潤</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                        {batchStats.map((batch) => (
+                            <tr key={batch.id} className="hover:bg-slate-50">
+                                <td className="p-3 text-center">
+                                    <div 
+                                        onClick={() => handleToggleStatus(batch.id, batch.status)}
+                                        className={`w-5 h-5 rounded-full mx-auto cursor-pointer shadow-md transition-all hover:scale-110 active:scale-95 border-2 border-white ${getStatusColor(batch.status)}`}
+                                        title="切換狀態: 紅(預購) -> 綠(進行) -> 黃(結案)"
+                                    />
+                                </td>
+                                <td className={`p-3 font-mono ${subTableStyle}`}>{batch.id}</td>
+                                <td className={`p-3 text-right font-mono ${subTableStyle}`}>{formatCurrency(batch.income)}</td>
+                                <td className={`p-3 text-right font-mono ${subTableStyle}`}>{formatCurrency(batch.expense)}</td>
+                                <td className={`p-3 text-right font-mono ${subTableStyle} ${batch.profit < 0 ? 'text-rose-500' : ''}`}>{formatCurrency(batch.profit)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
@@ -1020,7 +1060,7 @@ const App: React.FC = () => {
                                     {expandedGroup === group.id ? <ChevronDown size={24} className="text-blue-500"/> : <ChevronRight size={24} className="text-slate-400"/>}
                                 </div>
                                 {expandedGroup === group.id && <div className="p-2 bg-slate-50 border-t border-slate-100 space-y-2">
-                                    <div className="flex justify-between gap-2"><ActionButton icon={Trash2} label="刪除" onClick={(e:any) => handleDeleteGroup(e, group.id)} variant="outline" className="flex-1" /><ActionButton icon={Plus} label="新增" onClick={() => setEditingProduct({ group, nextId: getNextItemId(items.map(i => i.id)) })} variant="success" className="flex-1" /></div>
+                                    <div className="flex justify-between gap-2"><ActionButton icon={Trash2} label="刪除" onClick={(e:any) => handleDeleteGroup(e, group.id)} variant="danger" className="flex-1" /><ActionButton icon={Plus} label="新增" onClick={() => setEditingProduct({ group, nextId: getNextItemId(items.map(i => i.id)) })} variant="success" className="flex-1" /></div>
                                     {items.map(item => {
                                         const stats = calculateProductStats(item);
                                         return (
@@ -1051,7 +1091,7 @@ const App: React.FC = () => {
                         <div className="shrink-0 px-2 pt-2 bg-slate-100 z-10">
                             <div className="bg-white rounded-lg shadow-sm p-3 flex justify-between items-center border-l-4 border-blue-600">
                                 <div><div className="text-sm text-slate-400 font-bold">批次</div><div className="text-xl font-mono font-bold text-slate-800">{activeOrderGroup.id}</div></div>
-                                <div className="flex gap-2"><ActionButton icon={Trash2} label="刪除" onClick={(e:any) => handleDeleteOrderGroup(e, activeOrderGroup.id)} variant="outline" /><ActionButton icon={Plus} label="新增" onClick={() => { setIsOrderEntryOpen(true); setEditingOrderItem(null); }} variant="success" /></div>
+                                <div className="flex gap-2"><ActionButton icon={Trash2} label="刪除" onClick={(e:any) => handleDeleteOrderGroup(e, activeOrderGroup.id)} variant="danger" /><ActionButton icon={Plus} label="新增" onClick={() => { setIsOrderEntryOpen(true); setEditingOrderItem(null); }} variant="success" /></div>
                             </div>
                         </div>
                     )}
