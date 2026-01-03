@@ -3,7 +3,7 @@ import { ProductGroup, ProductItem, OrderGroup, OrderItem, ViewState } from './t
 import { INITIAL_PRODUCT_GROUPS, INITIAL_PRODUCT_ITEMS, INITIAL_ORDER_GROUPS, INITIAL_ORDER_ITEMS } from './constants';
 import { getNextGroupId, getNextItemId, getNextOrderGroupId, calculateProductStats, formatCurrency, generateUUID, cleanProductName } from './utils';
 import ProductForm from './components/ProductForm';
-import { Trash2, Edit, Plus, Package, ShoppingCart, List, BarChart2, ChevronRight, ChevronDown, User, Box, X, Calculator, Download, Save, Wallet, ArrowUpCircle, ArrowDownCircle, Grid, PieChart, Check, Circle } from 'lucide-react';
+import { Trash2, Edit, Plus, Package, ShoppingCart, List, BarChart2, ChevronRight, ChevronDown, User, Box, X, Calculator, Download, Save, Wallet, ArrowUpCircle, ArrowDownCircle, Grid, PieChart, Check } from 'lucide-react';
 import { db } from './firebase';
 import { 
   collection, 
@@ -901,9 +901,9 @@ const App: React.FC = () => {
                     <thead className="bg-slate-100 sticky top-0 shadow-sm z-10 border-b border-slate-200">
                         <tr>
                             <th className="p-3 text-sm font-bold text-slate-500 w-16 text-center">狀態</th>
-                            <th className="p-3 text-sm font-bold text-slate-500">訂單項</th>
-                            <th className="p-3 text-right text-sm font-bold text-blue-600">收入總計</th>
-                            <th className="p-3 text-right text-sm font-bold text-rose-600">支出總計</th>
+                            <th className="p-3 text-sm font-bold text-slate-500">批次</th>
+                            <th className="p-3 text-right text-sm font-bold text-blue-600">收入</th>
+                            <th className="p-3 text-right text-sm font-bold text-rose-600">支出</th>
                             <th className="p-3 text-right text-sm font-bold text-emerald-600">利潤</th>
                         </tr>
                     </thead>
@@ -998,14 +998,6 @@ const App: React.FC = () => {
   const renderIncomeView = () => {
     const { totalJpy, totalDomestic, totalHandling, totalSales, avgRateCost, netProfit, profitRate, cardFeeRate } = incomeStats;
     const currentStatus = incomeData.status || 'processing';
-
-    const getStatusLabel = (s: string) => {
-        switch(s) {
-            case 'preorder': return '預購';
-            case 'closed': return '結案';
-            default: return '進行';
-        }
-    };
 
     const statusOptions = [
         { value: 'processing', label: '進行', color: 'text-emerald-600', activeBg: 'bg-emerald-50 border-emerald-300' },
