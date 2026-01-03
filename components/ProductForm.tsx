@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ProductItem, ProductGroup } from '../types';
 import { calculateProductStats, formatCurrency } from '../utils';
-import { X } from 'lucide-react';
+import { X, Save } from 'lucide-react';
 
 interface Props {
   group: ProductGroup;
@@ -14,6 +14,11 @@ interface Props {
 
 // Helper to safely parse numbers
 const parseNum = (val: string | number) => parseFloat(String(val)) || 0;
+
+// Reusing the style from App.tsx via simple class string for now to avoid circular deps or complex props
+const btnBaseClass = "h-10 px-3 min-w-[90px] rounded-lg border shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 text-lg font-bold tracking-wide";
+const btnPrimaryClass = "bg-blue-700 hover:bg-blue-600 border-blue-600 text-white";
+const btnOutlineClass = "bg-white border-slate-300 text-slate-600 hover:bg-slate-50";
 
 const ProductForm: React.FC<Props> = ({ group, onSave, onCancel, initialData, nextId }) => {
   const [formState, setFormState] = useState({
@@ -64,9 +69,6 @@ const ProductForm: React.FC<Props> = ({ group, onSave, onCancel, initialData, ne
     onSave(finalItem);
   };
 
-  // 統一字體設定 (以購買明細為標準)
-  // Input: text-lg (18px) - 清楚好讀
-  // Label: text-sm (14px) - 輔助說明
   const labelClass = "block text-sm font-bold text-slate-600 mb-1"; 
   const inputClass = "block w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 h-10 text-lg font-bold focus:border-blue-500 focus:ring-blue-500"; 
 
@@ -86,7 +88,7 @@ const ProductForm: React.FC<Props> = ({ group, onSave, onCancel, initialData, ne
           </button>
         </div>
 
-        {/* Body - Optimized Spacing - Compact */}
+        {/* Body */}
         <div className="flex-1 p-4 flex flex-col gap-3 overflow-hidden">
             
             {/* 1. Name */}
@@ -184,8 +186,14 @@ const ProductForm: React.FC<Props> = ({ group, onSave, onCancel, initialData, ne
 
         {/* Footer */}
         <div className="p-4 border-t border-slate-200 bg-white flex gap-3 shrink-0">
-          <button onClick={onCancel} className="flex-1 py-3 border border-slate-300 rounded-lg text-slate-600 font-bold text-lg">取消</button>
-          <button onClick={handleSave} disabled={!formState.name || !formState.jpyPrice || !formState.inputPrice} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-md text-lg disabled:opacity-50">儲存</button>
+          <button onClick={onCancel} className={`${btnBaseClass} ${btnOutlineClass} flex-1`}>
+             <X size={20} strokeWidth={2.5} />
+             <span>取消</span>
+          </button>
+          <button onClick={handleSave} disabled={!formState.name || !formState.jpyPrice || !formState.inputPrice} className={`${btnBaseClass} ${btnPrimaryClass} flex-1 disabled:opacity-50`}>
+             <Save size={20} strokeWidth={2.5} />
+             <span>儲存</span>
+          </button>
         </div>
     </div>
   );

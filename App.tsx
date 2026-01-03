@@ -3,7 +3,7 @@ import { ProductGroup, ProductItem, OrderGroup, OrderItem, ViewState } from './t
 import { INITIAL_PRODUCT_GROUPS, INITIAL_PRODUCT_ITEMS, INITIAL_ORDER_GROUPS, INITIAL_ORDER_ITEMS } from './constants';
 import { getNextGroupId, getNextItemId, getNextOrderGroupId, calculateProductStats, formatCurrency, generateUUID, cleanProductName } from './utils';
 import ProductForm from './components/ProductForm';
-import { Trash2, Edit, Plus, Package, ShoppingCart, List, BarChart2, ChevronRight, ChevronDown, User, Box, X, Calculator, Download, Save, Wallet, ArrowUpCircle, ArrowDownCircle, Grid, PieChart } from 'lucide-react';
+import { Trash2, Edit, Plus, Package, ShoppingCart, List, BarChart2, ChevronRight, ChevronDown, User, Box, X, Calculator, Download, Save, Wallet, ArrowUpCircle, ArrowDownCircle, Grid, PieChart, Check, LogOut, FileText } from 'lucide-react';
 import { db } from './firebase';
 import { 
   collection, 
@@ -30,36 +30,39 @@ const DEFAULT_INCOME_DATA = {
 
 // --- UI Components ---
 
-// 1. Standard Action Button
-const ActionButton = ({ icon: Icon, label, onClick, active = false, variant = 'primary' }: any) => {
-    let bgClass = "bg-blue-700 hover:bg-blue-600 border-blue-600"; // Primary
-    if (variant === 'success') bgClass = "bg-emerald-600 hover:bg-emerald-500 border-emerald-500";
-    if (variant === 'danger') bgClass = "bg-rose-600 hover:bg-rose-500 border-rose-500";
-    if (variant === 'warning') bgClass = "bg-amber-600 hover:bg-amber-500 border-amber-500";
-    if (active) bgClass = "bg-yellow-500 text-blue-900 border-yellow-400 font-bold hover:bg-yellow-400";
+// 1. Standard Action Button (Unified Design)
+// Rules: Height h-10, Text-lg, Icon + 2 Chars
+const ActionButton = ({ icon: Icon, label, onClick, active = false, variant = 'primary', className = '' }: any) => {
+    let colorClass = "bg-blue-700 hover:bg-blue-600 border-blue-600 text-white"; // Primary
+    if (variant === 'success') colorClass = "bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white";
+    if (variant === 'danger') colorClass = "bg-rose-600 hover:bg-rose-500 border-rose-500 text-white";
+    if (variant === 'warning') colorClass = "bg-amber-600 hover:bg-amber-500 border-amber-500 text-white";
+    if (variant === 'outline') colorClass = "bg-white border-slate-300 text-slate-600 hover:bg-slate-50";
+    if (active) colorClass = "bg-yellow-400 text-blue-900 border-yellow-400 font-bold hover:bg-yellow-300";
     
     return (
         <button 
             onClick={onClick}
             className={`
-                h-10 px-3 min-w-[80px] rounded-lg border shadow-sm transition-all active:scale-95
+                h-10 px-3 min-w-[90px] rounded-lg border shadow-sm transition-all active:scale-95
                 flex items-center justify-center gap-1.5
-                text-base font-bold tracking-wide text-white
-                ${bgClass}
+                text-lg font-bold tracking-wide
+                ${colorClass}
+                ${className}
             `}
         >
-            <Icon size={18} strokeWidth={2.5} />
+            <Icon size={20} strokeWidth={2.5} />
             <span>{label}</span>
         </button>
     );
 };
 
-// 2. Order Batch Selector Button
+// 2. Order Batch Selector Button (Kept visually compatible but allows flexible text for IDs)
 const OrderBatchButton = ({ id, active, onClick }: any) => (
     <button 
         onClick={onClick}
         className={`
-            h-9 min-w-[90px] px-2 rounded-lg border font-mono font-bold text-base tracking-tight transition-all
+            h-10 min-w-[90px] px-2 rounded-lg border font-mono font-bold text-lg tracking-tight transition-all
             flex items-center justify-center shrink-0 shadow-sm
             ${active 
                 ? 'bg-yellow-400 text-blue-900 border-yellow-300 shadow-md scale-105' 
@@ -588,39 +591,21 @@ const App: React.FC = () => {
   const renderDetailsView = () => {
     if (!selectedOrderGroup) return;
 
-    // Refactored Logic:
-    // 1. Group by Main Entity (Buyer or Product)
-    // 2. Inside Main Entity, Group by "Product Variant"
-    //    - For Buyer View: Variant = ProductID (GroupId+ItemId). We sum up totals here.
-    //    - For Product View: Variant = ProductID + Description. We sum up totals here.
-
     const subTableStyle = "text-slate-500 font-normal text-base";
 
     if (detailSortMode === 'buyer') {
-        // Group by Buyer
-        const buyerMap = new Map<string, { buyer: string, totalTwd: number, products: Map<string, { 
-            product: ProductItem, 
-            totalPrice: number, 
-            items: OrderItem[] 
-        }> }>();
+        const buyerMap = new Map<string, { buyer: string, totalTwd: number, products: Map<string, { product: ProductItem, totalPrice: number, items: OrderItem[] }> }>();
 
         activeOrderItems.forEach(item => {
             const product = productItems.find(p => p.groupId === item.productGroupId && p.id === item.productItemId);
             if (!product) return;
-            
             const buyer = item.buyer;
             if (!buyerMap.has(buyer)) buyerMap.set(buyer, { buyer, totalTwd: 0, products: new Map() });
-            
             const buyerEntry = buyerMap.get(buyer)!;
-            const productKey = `${item.productGroupId}-${item.productItemId}`; // Unique Product ID
-            
-            if (!buyerEntry.products.has(productKey)) {
-                buyerEntry.products.set(productKey, { product, totalPrice: 0, items: [] });
-            }
-            
+            const productKey = `${item.productGroupId}-${item.productItemId}`; 
+            if (!buyerEntry.products.has(productKey)) buyerEntry.products.set(productKey, { product, totalPrice: 0, items: [] });
             const prodEntry = buyerEntry.products.get(productKey)!;
             const lineTotal = product.inputPrice * item.quantity;
-            
             prodEntry.items.push(item);
             prodEntry.totalPrice += lineTotal;
             buyerEntry.totalTwd += lineTotal;
@@ -632,7 +617,6 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-2 pb-24 space-y-3">
                 {sortedBuyers.map((b, i) => (
                     <div key={i} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-                        {/* Header: Buyer Name */}
                         <div className="bg-blue-50 p-3 flex justify-between items-center border-b border-blue-100">
                             <div className="flex items-center gap-2">
                                 <User size={20} className="text-blue-600"/>
@@ -640,12 +624,9 @@ const App: React.FC = () => {
                             </div>
                             <span className="font-mono font-bold text-xl text-blue-700">{formatCurrency(b.totalTwd)}</span>
                         </div>
-                        
-                        {/* List of Products for this Buyer */}
                         <div className="divide-y divide-slate-100">
                             {Array.from(b.products.values()).sort((x, y) => x.product.id.localeCompare(y.product.id)).map((p, pIdx) => (
                                 <div key={pIdx} className="p-0">
-                                    {/* Row 1: Product Item + Name | Total Price */}
                                     <div className="p-2 flex justify-between items-center bg-slate-50/30">
                                         <div className="font-bold text-lg text-slate-800">
                                             <span className="inline-block bg-slate-200 text-slate-600 text-sm px-1.5 rounded mr-2 align-middle">{p.product.id}</span>
@@ -655,18 +636,11 @@ const App: React.FC = () => {
                                             {formatCurrency(p.totalPrice)}
                                         </div>
                                     </div>
-
-                                    {/* Row 2: Description | Quantity | Unit Price (Grey Thin) */}
                                     <div className="px-4 pb-2">
                                         {p.items.map((item, itemIdx) => (
                                             <div key={itemIdx} className={`flex justify-between items-center py-1 ${subTableStyle} border-t border-dashed border-slate-100 first:border-t-0`}>
-                                                <div className="flex-1 truncate pr-2">
-                                                     {item.description || '單一款式'}
-                                                </div>
-                                                <div className="flex gap-4 font-mono shrink-0">
-                                                    <span>x{item.quantity}</span>
-                                                    <span>${p.product.inputPrice}</span>
-                                                </div>
+                                                <div className="flex-1 truncate pr-2">{item.description || '單一款式'}</div>
+                                                <div className="flex gap-4 font-mono shrink-0"><span>x{item.quantity}</span><span>${p.product.inputPrice}</span></div>
                                             </div>
                                         ))}
                                     </div>
@@ -678,35 +652,14 @@ const App: React.FC = () => {
                 {sortedBuyers.length === 0 && <div className="text-center py-10 text-slate-400 text-lg">無資料</div>}
             </div>
         );
-
     } else {
-        // Sort by Product (Product View)
-        // Group by Unique Product (ID + Description)
-        const productMap = new Map<string, { 
-            product: ProductItem, 
-            description: string, 
-            totalQty: number,
-            totalPrice: number,
-            buyers: OrderItem[] 
-        }>();
+        const productMap = new Map<string, { product: ProductItem, description: string, totalQty: number, totalPrice: number, buyers: OrderItem[] }>();
 
         activeOrderItems.forEach(item => {
             const product = productItems.find(p => p.groupId === item.productGroupId && p.id === item.productItemId);
             if (!product) return;
-
-            // Unique Key for Product View: ID + Description
             const key = `${item.productGroupId}-${item.productItemId}-${item.description || ''}`;
-            
-            if (!productMap.has(key)) {
-                productMap.set(key, { 
-                    product, 
-                    description: item.description, 
-                    totalQty: 0, 
-                    totalPrice: 0, 
-                    buyers: [] 
-                });
-            }
-
+            if (!productMap.has(key)) productMap.set(key, { product, description: item.description, totalQty: 0, totalPrice: 0, buyers: [] });
             const entry = productMap.get(key)!;
             const lineTotal = product.inputPrice * item.quantity;
             entry.totalQty += item.quantity;
@@ -725,31 +678,20 @@ const App: React.FC = () => {
                 {sortedProducts.map((p, i) => {
                      const productName = cleanProductName(p.product.name);
                      const fullName = p.description ? `${productName} : ${p.description}` : productName;
-
                      return (
                         <div key={i} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-                             {/* Row 1: Product Full Name | Total Price */}
                              <div className="bg-emerald-50 p-3 flex justify-between items-center border-b border-emerald-100">
                                 <div className="font-bold text-lg text-slate-800 pr-2 leading-tight">
                                     <span className="inline-block bg-emerald-200 text-emerald-800 text-sm px-1.5 rounded mr-2 align-middle">{p.product.id}</span>
                                     {fullName}
                                 </div>
-                                <div className="font-mono font-bold text-xl text-emerald-700 shrink-0">
-                                    {formatCurrency(p.totalPrice)}
-                                </div>
+                                <div className="font-mono font-bold text-xl text-emerald-700 shrink-0">{formatCurrency(p.totalPrice)}</div>
                              </div>
-
-                             {/* Row 2: Buyer | Qty | Unit Price (Grey Thin) */}
                              <div className="px-3 py-1">
                                 {p.buyers.map((item, itemIdx) => (
                                     <div key={itemIdx} className={`flex justify-between items-center py-1.5 ${subTableStyle} border-b border-slate-50 last:border-0`}>
-                                        <div className="flex-1 truncate font-medium">
-                                            {item.buyer}
-                                        </div>
-                                        <div className="flex gap-4 font-mono shrink-0">
-                                            <span>x{item.quantity}</span>
-                                            <span>${p.product.inputPrice}</span>
-                                        </div>
+                                        <div className="flex-1 truncate font-medium">{item.buyer}</div>
+                                        <div className="flex gap-4 font-mono shrink-0"><span>x{item.quantity}</span><span>${p.product.inputPrice}</span></div>
                                     </div>
                                 ))}
                              </div>
@@ -762,24 +704,9 @@ const App: React.FC = () => {
     }
   };
 
-  // Completely Revised Analysis View - Table Format with Larger Fonts & Grouping Logic
   const renderAnalysisView = () => {
-    // Grouping Logic:
-    // Main Table: Product Group (A01, A02...)
-    // Sub Table: Product Items (01, 02...)
-    
-    const groupMap = new Map<string, { group: ProductGroup, items: Map<string, {
-        item: ProductItem,
-        qty: number,
-        jpyTotal: number,
-        domesticTotal: number,
-        twdTotal: number
-    }> }>();
-
-    let totalQty = 0;
-    let grandTotalJPY = 0;
-    let grandTotalDomestic = 0;
-    let grandTotalTWD = 0;
+    const groupMap = new Map<string, { group: ProductGroup, items: Map<string, { item: ProductItem, qty: number, jpyTotal: number, domesticTotal: number, twdTotal: number }> }>();
+    let totalQty = 0; let grandTotalJPY = 0; let grandTotalDomestic = 0; let grandTotalTWD = 0;
 
     activeOrderItems.forEach(orderItem => {
         const { productGroupId, productItemId, quantity } = orderItem;
@@ -788,39 +715,20 @@ const App: React.FC = () => {
         const group = productGroups.find(g => g.id === productGroupId);
         if (!group) return;
 
-        if (!groupMap.has(productGroupId)) {
-            groupMap.set(productGroupId, { group, items: new Map() });
-        }
+        if (!groupMap.has(productGroupId)) groupMap.set(productGroupId, { group, items: new Map() });
         const groupEntry = groupMap.get(productGroupId)!;
-
-        if (!groupEntry.items.has(productItemId)) {
-            groupEntry.items.set(productItemId, {
-                item: product,
-                qty: 0,
-                jpyTotal: 0,
-                domesticTotal: 0,
-                twdTotal: 0
-            });
-        }
-
+        if (!groupEntry.items.has(productItemId)) groupEntry.items.set(productItemId, { item: product, qty: 0, jpyTotal: 0, domesticTotal: 0, twdTotal: 0 });
         const stats = groupEntry.items.get(productItemId)!;
         stats.qty += quantity;
         const lineJpy = product.jpyPrice * quantity;
         const lineDom = product.domesticShip * quantity;
         const lineTwd = product.inputPrice * quantity;
-
-        stats.jpyTotal += lineJpy;
-        stats.domesticTotal += lineDom;
-        stats.twdTotal += lineTwd;
-
-        totalQty += quantity;
-        grandTotalJPY += lineJpy;
-        grandTotalDomestic += lineDom;
-        grandTotalTWD += lineTwd;
+        stats.jpyTotal += lineJpy; stats.domesticTotal += lineDom; stats.twdTotal += lineTwd;
+        totalQty += quantity; grandTotalJPY += lineJpy; grandTotalDomestic += lineDom; grandTotalTWD += lineTwd;
     });
 
     const sortedGroupIds = Array.from(groupMap.keys()).sort();
-    const subTableStyle = "text-slate-500 font-normal text-base"; // Grey Thin
+    const subTableStyle = "text-slate-500 font-normal text-base";
 
     return (
         <div className="flex-1 overflow-hidden flex flex-col bg-white">
@@ -831,10 +739,7 @@ const App: React.FC = () => {
                             <th className="p-3 text-base font-bold text-slate-600 uppercase tracking-wider">商品項目 (類別)</th>
                             <th className="p-3 text-right text-base font-bold text-slate-600 uppercase tracking-wider w-16">數量</th>
                             {analysisMode === 'expenditure' ? (
-                                <>
-                                    <th className="p-3 text-right text-base font-bold text-amber-600 uppercase tracking-wider">日幣總價</th>
-                                    <th className="p-3 text-right text-base font-bold text-orange-600 uppercase tracking-wider">境內運</th>
-                                </>
+                                <><th className="p-3 text-right text-base font-bold text-amber-600 uppercase tracking-wider">日幣總價</th><th className="p-3 text-right text-base font-bold text-orange-600 uppercase tracking-wider">境內運</th></>
                             ) : (
                                 <th className="p-3 text-right text-base font-bold text-emerald-600 uppercase tracking-wider">台幣總價</th>
                             )}
@@ -844,18 +749,14 @@ const App: React.FC = () => {
                         {sortedGroupIds.map(gid => {
                             const entry = groupMap.get(gid)!;
                             const sortedItemIds = Array.from(entry.items.keys()).sort();
-                            
                             return (
                                 <React.Fragment key={gid}>
-                                    {/* Main Table Row: Product Group */}
                                     <tr className="bg-slate-100/80 border-t border-slate-200 first:border-t-0">
                                         <td colSpan={analysisMode === 'expenditure' ? 4 : 3} className="px-3 py-2">
                                             <span className="font-mono text-sm font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded mr-2">{gid}</span>
                                             <span className="font-bold text-slate-800 text-lg">{entry.group.name}</span>
                                         </td>
                                     </tr>
-                                    
-                                    {/* Sub Table Rows: Product Items (Grey Thin) */}
                                     {sortedItemIds.map(iid => {
                                         const stat = entry.items.get(iid)!;
                                         return (
@@ -866,22 +767,11 @@ const App: React.FC = () => {
                                                         {cleanProductName(stat.item.name)}
                                                     </div>
                                                 </td>
-                                                <td className={`p-3 text-right font-mono ${subTableStyle}`}>
-                                                    {stat.qty}
-                                                </td>
+                                                <td className={`p-3 text-right font-mono ${subTableStyle}`}>{stat.qty}</td>
                                                 {analysisMode === 'expenditure' ? (
-                                                    <>
-                                                        <td className={`p-3 text-right font-mono ${subTableStyle}`}>
-                                                            ¥{stat.jpyTotal}
-                                                        </td>
-                                                        <td className={`p-3 text-right font-mono ${subTableStyle}`}>
-                                                            ¥{stat.domesticTotal}
-                                                        </td>
-                                                    </>
+                                                    <><td className={`p-3 text-right font-mono ${subTableStyle}`}>¥{stat.jpyTotal}</td><td className={`p-3 text-right font-mono ${subTableStyle}`}>¥{stat.domesticTotal}</td></>
                                                 ) : (
-                                                    <td className={`p-3 text-right font-mono ${subTableStyle}`}>
-                                                        {formatCurrency(stat.twdTotal)}
-                                                    </td>
+                                                    <td className={`p-3 text-right font-mono ${subTableStyle}`}>{formatCurrency(stat.twdTotal)}</td>
                                                 )}
                                             </tr>
                                         )
@@ -889,20 +779,14 @@ const App: React.FC = () => {
                                 </React.Fragment>
                             )
                         })}
-                        {sortedGroupIds.length === 0 && (
-                             <tr><td colSpan={5} className="text-center py-10 text-slate-400 text-lg">無資料</td></tr>
-                        )}
+                        {sortedGroupIds.length === 0 && <tr><td colSpan={5} className="text-center py-10 text-slate-400 text-lg">無資料</td></tr>}
                     </tbody>
-                    {/* Light Blue Footer */}
                     <tfoot className="bg-blue-100 text-blue-900 sticky bottom-0 z-10 shadow-lg border-t-2 border-blue-200">
                         <tr>
                             <td className="p-3 font-bold text-xl text-right">總計</td>
                             <td className="p-3 text-right font-bold font-mono text-xl">{totalQty}</td>
                             {analysisMode === 'expenditure' ? (
-                                <>
-                                    <td className="p-3 text-right font-bold font-mono text-xl text-blue-900">¥{grandTotalJPY}</td>
-                                    <td className="p-3 text-right font-bold font-mono text-xl text-blue-900">¥{grandTotalDomestic}</td>
-                                </>
+                                <><td className="p-3 text-right font-bold font-mono text-xl text-blue-900">¥{grandTotalJPY}</td><td className="p-3 text-right font-bold font-mono text-xl text-blue-900">¥{grandTotalDomestic}</td></>
                             ) : (
                                 <td className="p-3 text-right font-bold font-mono text-2xl text-blue-900">{formatCurrency(grandTotalTWD)}</td>
                             )}
@@ -914,19 +798,12 @@ const App: React.FC = () => {
     )
   };
 
-  // Completely Revised Deposits View - Filter by Product, Show only relevant info
   const renderDepositsView = () => {
-    // 1. Get ALL items that have text in remarks
     const itemsWithRemarks = activeOrderItems.filter(i => i.remarks && i.remarks.trim().length > 0);
-    
-    // Sort logic
     const displayList = itemsWithRemarks.sort((a, b) => a.buyer.localeCompare(b.buyer, 'zh-TW'));
 
     return (
         <div className="flex-1 overflow-hidden flex flex-col bg-white">
-            {/* Removed Filter Buttons Section */}
-
-            {/* Table: Buyer, Remark, Note */}
             <div className="flex-1 overflow-auto">
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm border-b border-slate-200">
@@ -943,17 +820,9 @@ const App: React.FC = () => {
                             displayList.map((item, idx) => {
                                 return (
                                     <tr key={idx} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/50 transition-colors`}>
-                                        <td className="p-3 text-lg font-bold text-blue-800 align-top">
-                                            {item.buyer}
-                                        </td>
-                                        <td className="p-3 align-top">
-                                            <span className={`px-3 py-1 rounded-lg text-lg font-bold border whitespace-nowrap block text-center bg-yellow-50 text-yellow-800 border-yellow-200 shadow-sm`}>
-                                                {item.remarks}
-                                            </span>
-                                        </td>
-                                        <td className="p-3 text-lg text-slate-700 font-bold align-top">
-                                            {item.note || '-'}
-                                        </td>
+                                        <td className="p-3 text-lg font-bold text-blue-800 align-top">{item.buyer}</td>
+                                        <td className="p-3 align-top"><span className={`px-3 py-1 rounded-lg text-lg font-bold border whitespace-nowrap block text-center bg-yellow-50 text-yellow-800 border-yellow-200 shadow-sm`}>{item.remarks}</span></td>
+                                        <td className="p-3 text-lg text-slate-700 font-bold align-top">{item.note || '-'}</td>
                                     </tr>
                                 );
                             })
@@ -966,46 +835,24 @@ const App: React.FC = () => {
   };
   
   const renderIncomeAnalysisModal = () => {
-    // 1. Calculate stats per Order Group (Batch)
     const batchStats = orderGroups.map(group => {
         const itemsInBatch = orderItems.filter(i => i.orderGroupId === group.id);
-        
-        // Manual settings for this specific batch
         const settings = allIncomeSettings[group.id] || DEFAULT_INCOME_DATA;
         const packaging = settings.packagingRevenue || 0;
         const cardCharge = settings.cardCharge || 0;
         const cardFee = settings.cardFee || 0;
         const intlShip = settings.intlShipping || 0;
-
         let totalItemSales = 0;
-
         itemsInBatch.forEach(item => {
             const product = productItems.find(p => p.groupId === item.productGroupId && p.id === item.productItemId);
-            if (product) {
-                // "收入金額" = Input Price * Quantity
-                totalItemSales += product.inputPrice * item.quantity;
-            }
+            if (product) totalItemSales += product.inputPrice * item.quantity;
         });
-
-        // "收入總計" = ("收入金額" + "包材收入")
         const batchIncome = totalItemSales + packaging;
-        
-        // “支出總計” ="刷卡費"+"刷卡手續費"+"國際運費"
         const batchExpense = cardCharge + cardFee + intlShip;
-        
-        // "利潤"=("收入金額""+"包材收入")-("刷卡費"+"刷卡手續費"+"國際運費" )
         const batchProfit = batchIncome - batchExpense;
+        return { id: group.id, income: batchIncome, expense: batchExpense, profit: batchProfit, itemCount: itemsInBatch.length };
+    }).sort((a, b) => b.id.localeCompare(a.id));
 
-        return {
-            id: group.id,
-            income: batchIncome,
-            expense: batchExpense,
-            profit: batchProfit,
-            itemCount: itemsInBatch.length
-        };
-    }).sort((a, b) => b.id.localeCompare(a.id)); // Sort descending (newest first)
-
-    // 2. Grand Totals
     const totalIncome = batchStats.reduce((acc, cur) => acc + cur.income, 0);
     const totalExpense = batchStats.reduce((acc, cur) => acc + cur.expense, 0);
     const totalProfit = batchStats.reduce((acc, cur) => acc + cur.profit, 0);
@@ -1016,48 +863,26 @@ const App: React.FC = () => {
                 <h3 className="text-xl font-bold text-white">收支分析詳細表</h3>
                 <button onClick={() => setShowIncomeAnalysisModal(false)} className="text-blue-300 hover:text-white"><X size={28} /></button>
             </div>
-
             <div className="flex-1 overflow-auto bg-slate-50 flex flex-col">
-                {/* Summary Section (Placed at Top) */}
                 <div className="bg-white p-4 shadow-sm border-b border-slate-200 shrink-0">
                     <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
-                            <div className="text-blue-600 text-sm font-bold mb-1">收入總計</div>
-                            <div className="text-xl font-mono font-bold text-blue-800">{formatCurrency(totalIncome)}</div>
-                        </div>
-                        <div className="bg-rose-50 p-3 rounded-xl border border-rose-100">
-                            <div className="text-rose-600 text-sm font-bold mb-1">支出總計</div>
-                            <div className="text-xl font-mono font-bold text-rose-800">{formatCurrency(totalExpense)}</div>
-                        </div>
-                        <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
-                            <div className="text-emerald-600 text-sm font-bold mb-1">總利潤</div>
-                            <div className="text-xl font-mono font-bold text-emerald-700">{formatCurrency(totalProfit)}</div>
-                        </div>
+                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-100"><div className="text-blue-600 text-sm font-bold mb-1">收入總計</div><div className="text-xl font-mono font-bold text-blue-800">{formatCurrency(totalIncome)}</div></div>
+                        <div className="bg-rose-50 p-3 rounded-xl border border-rose-100"><div className="text-rose-600 text-sm font-bold mb-1">支出總計</div><div className="text-xl font-mono font-bold text-rose-800">{formatCurrency(totalExpense)}</div></div>
+                        <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100"><div className="text-emerald-600 text-sm font-bold mb-1">總利潤</div><div className="text-xl font-mono font-bold text-emerald-700">{formatCurrency(totalProfit)}</div></div>
                     </div>
                 </div>
-
                 <div className="flex-1 overflow-auto">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-100 sticky top-0 shadow-sm z-10 border-b border-slate-200">
-                            <tr>
-                                <th className="p-3 text-base font-bold text-slate-600">訂單項</th>
-                                <th className="p-3 text-right text-base font-bold text-blue-600">收入總計</th>
-                                <th className="p-3 text-right text-base font-bold text-rose-600">支出總計</th>
-                                <th className="p-3 text-right text-base font-bold text-emerald-600">利潤</th>
-                            </tr>
+                            <tr><th className="p-3 text-base font-bold text-slate-600">訂單項</th><th className="p-3 text-right text-base font-bold text-blue-600">收入總計</th><th className="p-3 text-right text-base font-bold text-rose-600">支出總計</th><th className="p-3 text-right text-base font-bold text-emerald-600">利潤</th></tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {batchStats.map((batch) => (
                                 <tr key={batch.id} className="hover:bg-slate-50">
-                                    <td className="p-3">
-                                        <div className="font-bold text-slate-800 text-lg font-mono">{batch.id}</div>
-                                        <div className="text-sm text-slate-400 font-bold mt-0.5">{batch.itemCount} 筆訂單</div>
-                                    </td>
+                                    <td className="p-3"><div className="font-bold text-slate-800 text-lg font-mono">{batch.id}</div><div className="text-sm text-slate-400 font-bold mt-0.5">{batch.itemCount} 筆訂單</div></td>
                                     <td className="p-3 text-right font-mono font-bold text-blue-700 text-lg">{formatCurrency(batch.income)}</td>
                                     <td className="p-3 text-right font-mono font-bold text-rose-600 text-lg">{formatCurrency(batch.expense)}</td>
-                                    <td className={`p-3 text-right font-mono font-bold text-lg ${batch.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                        {formatCurrency(batch.profit)}
-                                    </td>
+                                    <td className={`p-3 text-right font-mono font-bold text-lg ${batch.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(batch.profit)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1068,10 +893,8 @@ const App: React.FC = () => {
     );
   };
 
-  // Restored Original Blue Header
   const Header = ({ title, actions, showOrderSelector = false }: any) => (
       <div className="bg-blue-900 shadow-lg border-b border-blue-800 shrink-0 z-10 flex flex-col relative pb-2">
-         {/* Top Bar: Title & Actions */}
          <div className="flex justify-between items-center px-3 pt-3 pb-1">
              <div className="flex flex-col justify-center">
                  <h2 className="text-xl font-bold text-white tracking-wide drop-shadow-sm leading-tight">{title}</h2>
@@ -1081,8 +904,6 @@ const App: React.FC = () => {
                  {actions}
              </div>
          </div>
-         
-         {/* Order Selector (Conditional) */}
          {showOrderSelector && (
              <div className="px-3 mt-1">
                  <div className="flex gap-1.5 overflow-x-auto pb-1.5 no-scrollbar mask-gradient-right">
@@ -1112,90 +933,35 @@ const App: React.FC = () => {
         }
     }, [localItem.productGroupId, localItem.productItemId]);
 
-    // Unified Font Styles
-    // Input: text-lg
-    // Label: text-sm
     const inputClass = "block w-full rounded-lg border border-slate-300 bg-white text-slate-900 px-3 h-10 text-lg font-bold focus:border-blue-500 focus:ring-blue-500";
     const labelClass = "block text-sm font-bold text-slate-600 mb-0.5";
 
     return (
         <div className="fixed inset-0 z-[60] bg-white flex flex-col animate-in fade-in duration-200">
             <div className="px-5 py-4 border-b border-blue-900 bg-blue-950 flex justify-between items-center shrink-0">
-                <h3 className="font-bold text-white text-xl">
-                    {editingOrderItem ? '修改訂單' : '新增訂單'}
-                </h3>
+                <h3 className="font-bold text-white text-xl">{editingOrderItem ? '修改訂單' : '新增訂單'}</h3>
                 <button onClick={() => setIsOrderEntryOpen(false)} className="text-blue-200 hover:text-white"><X size={28} /></button>
             </div>
-            
-            {/* Body - Optimized Spacing - No Scroll - Flex Distribution */}
-            {/* Removed justify-between, using gap-3 for compact layout */}
             <div className="flex-1 p-5 flex flex-col gap-3 overflow-hidden">
-                
-                {/* 1. Category */}
-                <div>
-                    <label className={labelClass}>商品類別</label>
-                    <select className={inputClass} value={localItem.productGroupId || ''} onChange={e => setLocalItem({...localItem, productGroupId: e.target.value, productItemId: ''})}><option value="">選擇類別</option>{productGroups.map(g => <option key={g.id} value={g.id}>{g.id} {g.name}</option>)}</select>
-                </div>
-                
-                {/* 2. Product Name */}
-                <div>
-                    <label className={labelClass}>商品名稱</label>
-                    <select className={inputClass} value={localItem.productItemId || ''} onChange={e => setLocalItem({...localItem, productItemId: e.target.value})} disabled={!localItem.productGroupId}><option value="">選擇商品</option>{currentGroupItems.map(i => <option key={i.id} value={i.id}>{i.id} {i.name}</option>)}</select>
-                </div>
-
-                {/* 3. Description */}
-                <div>
-                    <label className={labelClass}>商品描述</label>
-                    <input type="text" className={inputClass} value={localItem.description} onChange={e => setLocalItem({...localItem, description: e.target.value})} placeholder="規格/款式" />
-                </div>
-                
-                {/* 4. Buyer */}
-                <div>
-                    <label className={labelClass}>訂購者</label>
-                    <input type="text" className={inputClass} value={localItem.buyer} onChange={e => setLocalItem({...localItem, buyer: e.target.value})} placeholder="買家名稱" />
-                </div>
-
-                {/* 5. Quantity & Date (Row) */}
-                <div className="flex gap-4">
-                    <div className="flex-1">
-                        <label className={labelClass}>數量</label>
-                        <input type="number" className={`${inputClass} text-center`} value={localItem.quantity} onChange={e => setLocalItem({...localItem, quantity: parseInt(e.target.value) || 0})} />
-                    </div>
-                    <div className="flex-1">
-                        <label className={labelClass}>日期</label>
-                        <input type="date" className={inputClass} value={localItem.date} onChange={e => setLocalItem({...localItem, date: e.target.value})} />
-                    </div>
-                </div>
-
-                {/* 6. Remarks */}
-                <div>
-                    <label className={labelClass}>備註</label>
-                    <input type="text" className={inputClass} value={localItem.remarks} onChange={e => setLocalItem({...localItem, remarks: e.target.value})} placeholder="匯款/自留..." />
-                </div>
-                
-                {/* 7. Notes */}
-                <div>
-                    <label className={labelClass}>說明</label>
-                    <input type="text" className={inputClass} value={localItem.note} onChange={e => setLocalItem({...localItem, note: e.target.value})} placeholder="其他說明" />
-                </div>
+                <div><label className={labelClass}>商品類別</label><select className={inputClass} value={localItem.productGroupId || ''} onChange={e => setLocalItem({...localItem, productGroupId: e.target.value, productItemId: ''})}><option value="">選擇類別</option>{productGroups.map(g => <option key={g.id} value={g.id}>{g.id} {g.name}</option>)}</select></div>
+                <div><label className={labelClass}>商品名稱</label><select className={inputClass} value={localItem.productItemId || ''} onChange={e => setLocalItem({...localItem, productItemId: e.target.value})} disabled={!localItem.productGroupId}><option value="">選擇商品</option>{currentGroupItems.map(i => <option key={i.id} value={i.id}>{i.id} {i.name}</option>)}</select></div>
+                <div><label className={labelClass}>商品描述</label><input type="text" className={inputClass} value={localItem.description} onChange={e => setLocalItem({...localItem, description: e.target.value})} placeholder="規格/款式" /></div>
+                <div><label className={labelClass}>訂購者</label><input type="text" className={inputClass} value={localItem.buyer} onChange={e => setLocalItem({...localItem, buyer: e.target.value})} placeholder="買家名稱" /></div>
+                <div className="flex gap-4"><div className="flex-1"><label className={labelClass}>數量</label><input type="number" className={`${inputClass} text-center`} value={localItem.quantity} onChange={e => setLocalItem({...localItem, quantity: parseInt(e.target.value) || 0})} /></div><div className="flex-1"><label className={labelClass}>日期</label><input type="date" className={inputClass} value={localItem.date} onChange={e => setLocalItem({...localItem, date: e.target.value})} /></div></div>
+                <div><label className={labelClass}>備註</label><input type="text" className={inputClass} value={localItem.remarks} onChange={e => setLocalItem({...localItem, remarks: e.target.value})} placeholder="匯款/自留..." /></div>
+                <div><label className={labelClass}>說明</label><input type="text" className={inputClass} value={localItem.note} onChange={e => setLocalItem({...localItem, note: e.target.value})} placeholder="其他說明" /></div>
             </div>
-
-            {/* Footer */}
             <div className="p-4 border-t border-slate-200 bg-white flex gap-3 shrink-0">
-                {editingOrderItem && <button onClick={() => handleDeleteOrderItem(null as any, editingOrderItem.id)} className="p-3 bg-rose-50 text-rose-600 rounded-lg border border-rose-200"><Trash2 size={24} /></button>}
-                <button onClick={() => setIsOrderEntryOpen(false)} className="flex-1 py-3 border border-slate-300 rounded-lg text-slate-600 font-bold text-lg">取消</button>
-                <button onClick={() => handleSaveOrderItem({ ...localItem, orderGroupId: selectedOrderGroup! } as OrderItem)} disabled={!localItem.productItemId || !localItem.buyer} className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-bold shadow-md text-lg">儲存</button>
+                {editingOrderItem && <ActionButton icon={Trash2} label="刪除" onClick={() => handleDeleteOrderItem(null as any, editingOrderItem.id)} variant="danger" />}
+                <ActionButton icon={X} label="取消" onClick={() => setIsOrderEntryOpen(false)} variant="outline" className="flex-1" />
+                <ActionButton icon={Save} label="儲存" onClick={() => handleSaveOrderItem({ ...localItem, orderGroupId: selectedOrderGroup! } as OrderItem)} disabled={!localItem.productItemId || !localItem.buyer} className="flex-1" />
             </div>
         </div>
     )
   }
 
-  // Modified Income View: Single Page, No Scroll, Even Distribution
   const renderIncomeView = () => {
     const { totalJpy, totalDomestic, totalHandling, totalSales, avgRateCost, netProfit, profitRate, cardFeeRate } = incomeStats;
-    
-    // IncomeField is now defined outside to prevent re-renders losing focus
-
     return (
         <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
              <Header title="收支計算" showOrderSelector={true} actions={
@@ -1205,50 +971,19 @@ const App: React.FC = () => {
                   <ActionButton icon={Download} label="匯出" onClick={handleExportIncome} variant="success" />
                 </>
              }/>
-             
-             {/* Main Content Container: Adjusted spacing (gap-2, p-2, overflow-hidden) */}
              <div className="flex-1 p-2 flex flex-col gap-2 overflow-hidden justify-start">
-                
-                {/* Card 1: Base Costs & Inputs */}
                 <div className="bg-white p-2.5 rounded-xl border border-slate-300 shadow-sm flex flex-col gap-2 shrink-0">
-                    <div className="grid grid-cols-3 gap-2">
-                        <IncomeField label="日幣總計" value={formatCurrency(totalJpy)} />
-                        <IncomeField label="境內運總計" value={formatCurrency(totalDomestic)} />
-                        <IncomeField label="手續費總計" value={formatCurrency(totalHandling)} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <IncomeField label="商品收入" value={formatCurrency(totalSales)} colorClass="text-blue-600" />
-                        <IncomeField label="包材收入 (輸入)" value={incomeData.packagingRevenue} isInput onChange={(e:any) => setIncomeData({...incomeData, packagingRevenue: e.target.value})} colorClass="text-blue-600" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                        <IncomeField label="刷卡費 (成本)" value={incomeData.cardCharge} isInput onChange={(e:any) => setIncomeData({...incomeData, cardCharge: e.target.value})} />
-                        <IncomeField label="刷卡手續費" value={incomeData.cardFee} isInput onChange={(e:any) => setIncomeData({...incomeData, cardFee: e.target.value})} />
-                        <IncomeField label="國際運費" value={incomeData.intlShipping} isInput onChange={(e:any) => setIncomeData({...incomeData, intlShipping: e.target.value})} />
-                    </div>
+                    <div className="grid grid-cols-3 gap-2"><IncomeField label="日幣總計" value={formatCurrency(totalJpy)} /><IncomeField label="境內運總計" value={formatCurrency(totalDomestic)} /><IncomeField label="手續費總計" value={formatCurrency(totalHandling)} /></div>
+                    <div className="grid grid-cols-2 gap-2"><IncomeField label="商品收入" value={formatCurrency(totalSales)} colorClass="text-blue-600" /><IncomeField label="包材收入 (輸入)" value={incomeData.packagingRevenue} isInput onChange={(e:any) => setIncomeData({...incomeData, packagingRevenue: e.target.value})} colorClass="text-blue-600" /></div>
+                    <div className="grid grid-cols-3 gap-2"><IncomeField label="刷卡費 (成本)" value={incomeData.cardCharge} isInput onChange={(e:any) => setIncomeData({...incomeData, cardCharge: e.target.value})} /><IncomeField label="刷卡手續費" value={incomeData.cardFee} isInput onChange={(e:any) => setIncomeData({...incomeData, cardFee: e.target.value})} /><IncomeField label="國際運費" value={incomeData.intlShipping} isInput onChange={(e:any) => setIncomeData({...incomeData, intlShipping: e.target.value})} /></div>
                 </div>
-
-                {/* Card 2: Profit Analysis */}
                 <div className="bg-white p-2.5 rounded-xl border border-slate-300 shadow-sm flex flex-col gap-2 shrink-0">
-                    <div className="grid grid-cols-2 gap-2">
-                        <IncomeField label="平均匯率" value={avgRateCost.toFixed(3)} colorClass="text-purple-600" />
-                        <IncomeField label="手續費佔比" value={`${cardFeeRate.toFixed(2)}%`} colorClass="text-purple-600" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <IncomeField label="總利潤" value={formatCurrency(netProfit)} colorClass="text-emerald-600" />
-                        <IncomeField label="利潤率 ROI" value={`${profitRate.toFixed(2)}%`} colorClass="text-emerald-600" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <IncomeField label="爸爸 (20%)" value={formatCurrency(Math.round(netProfit * 0.2))} colorClass="text-indigo-600" />
-                        <IncomeField label="妹妹 (80%)" value={formatCurrency(Math.round(netProfit * 0.8))} colorClass="text-rose-500" />
-                    </div>
+                    <div className="grid grid-cols-2 gap-2"><IncomeField label="平均匯率" value={avgRateCost.toFixed(3)} colorClass="text-purple-600" /><IncomeField label="手續費佔比" value={`${cardFeeRate.toFixed(2)}%`} colorClass="text-purple-600" /></div>
+                    <div className="grid grid-cols-2 gap-2"><IncomeField label="總利潤" value={formatCurrency(netProfit)} colorClass="text-emerald-600" /><IncomeField label="利潤率 ROI" value={`${profitRate.toFixed(2)}%`} colorClass="text-emerald-600" /></div>
+                    <div className="grid grid-cols-2 gap-2"><IncomeField label="爸爸 (20%)" value={formatCurrency(Math.round(netProfit * 0.2))} colorClass="text-indigo-600" /><IncomeField label="妹妹 (80%)" value={formatCurrency(Math.round(netProfit * 0.8))} colorClass="text-rose-500" /></div>
                 </div>
-
-                {/* Card 3: Receivables & Notes */}
                 <div className="bg-white p-2.5 rounded-xl border border-slate-300 shadow-sm flex flex-col justify-center shrink-0">
-                    <div className="grid grid-cols-12 gap-2">
-                        <div className="col-span-4"><IncomeField label="爸爸應收" value={incomeData.dadReceivable} isInput onChange={(e:any) => setIncomeData({...incomeData, dadReceivable: e.target.value})} /></div>
-                        <div className="col-span-8"><IncomeField label="收款說明" value={incomeData.paymentNote || ''} isInput onChange={(e:any) => setIncomeData({...incomeData, paymentNote: e.target.value})} /></div>
-                    </div>
+                    <div className="grid grid-cols-12 gap-2"><div className="col-span-4"><IncomeField label="爸爸應收" value={incomeData.dadReceivable} isInput onChange={(e:any) => setIncomeData({...incomeData, dadReceivable: e.target.value})} /></div><div className="col-span-8"><IncomeField label="收款說明" value={incomeData.paymentNote || ''} isInput onChange={(e:any) => setIncomeData({...incomeData, paymentNote: e.target.value})} /></div></div>
                 </div>
              </div>
              {showIncomeAnalysisModal && renderIncomeAnalysisModal()}
@@ -1261,19 +996,18 @@ const App: React.FC = () => {
         onClick={() => setView(id)} 
         className={`flex-1 flex flex-col items-center justify-center h-full transition-all duration-200 ${view === id ? 'text-yellow-400 bg-blue-900/50' : 'text-blue-200 hover:text-white'}`}
       >
-        <Icon size={28} strokeWidth={view === id ? 2.5 : 2} className={view === id ? 'drop-shadow-sm' : ''} />
-        <span className="text-xs font-bold mt-1 tracking-wide">{label}</span>
+        <Icon size={24} strokeWidth={view === id ? 2.5 : 2} className={view === id ? 'drop-shadow-sm' : ''} />
+        <span className="text-sm font-bold mt-1 tracking-wide">{label}</span>
       </button>
   );
 
-  // --- Main Layout ---
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden">
         <div className="flex-1 overflow-hidden relative">
             {view === 'products' && (
                 <div className="flex flex-col h-full">
                     <Header title="產品管理" actions={<><ActionButton icon={Grid} label="新增" onClick={() => setShowNewGroupInput(!showNewGroupInput)} /><ActionButton icon={Download} label="匯出" onClick={handleExportProducts} variant="success" /></>} />
-                    {showNewGroupInput && <div className="p-3 bg-blue-800 flex gap-2"><input autoFocus type="text" className="flex-1 p-3 text-lg rounded-lg" value={newGroupInput} onChange={e => setNewGroupInput(e.target.value)} placeholder="類別名稱" /><button onClick={handleAddGroup} className="text-sm bg-cyan-600 text-white px-4 rounded-lg font-bold">確定</button></div>}
+                    {showNewGroupInput && <div className="p-3 bg-blue-800 flex gap-2"><input autoFocus type="text" className="flex-1 p-2 px-3 text-lg rounded-lg" value={newGroupInput} onChange={e => setNewGroupInput(e.target.value)} placeholder="類別名稱" /><ActionButton icon={Check} label="確定" onClick={handleAddGroup} variant="success" /></div>}
                     <div className="flex-1 overflow-y-auto p-2 pb-24 space-y-2">
                         {filteredProducts.map(({ group, items }) => (
                             <div key={group.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -1286,7 +1020,7 @@ const App: React.FC = () => {
                                     {expandedGroup === group.id ? <ChevronDown size={24} className="text-blue-500"/> : <ChevronRight size={24} className="text-slate-400"/>}
                                 </div>
                                 {expandedGroup === group.id && <div className="p-2 bg-slate-50 border-t border-slate-100 space-y-2">
-                                    <div className="flex justify-between gap-2"><button onClick={(e) => handleDeleteGroup(e, group.id)} className="text-base text-rose-600 border border-rose-200 bg-white px-3 py-2 rounded-lg flex items-center font-bold"><Trash2 size={18} className="mr-1"/>刪除類別</button><button onClick={() => setEditingProduct({ group, nextId: getNextItemId(items.map(i => i.id)) })} className="text-base text-white bg-emerald-600 px-4 py-2 rounded-lg flex items-center font-bold"><Plus size={18} className="mr-1"/>新增商品</button></div>
+                                    <div className="flex justify-between gap-2"><ActionButton icon={Trash2} label="刪除" onClick={(e:any) => handleDeleteGroup(e, group.id)} variant="outline" className="flex-1" /><ActionButton icon={Plus} label="新增" onClick={() => setEditingProduct({ group, nextId: getNextItemId(items.map(i => i.id)) })} variant="success" className="flex-1" /></div>
                                     {items.map(item => {
                                         const stats = calculateProductStats(item);
                                         return (
@@ -1313,17 +1047,14 @@ const App: React.FC = () => {
             {view === 'orders' && (
                 <div className="flex flex-col h-full">
                     <Header title="訂單管理" showOrderSelector={true} actions={<><ActionButton icon={Plus} label="訂單" onClick={() => setShowNewOrderModal(true)} /><ActionButton icon={Download} label="匯出" onClick={handleExportOrders} variant="success" /></>} />
-                    
-                    {/* Fixed Header Section for Batch Info */}
                     {activeOrderGroup && (
                         <div className="shrink-0 px-2 pt-2 bg-slate-100 z-10">
                             <div className="bg-white rounded-lg shadow-sm p-3 flex justify-between items-center border-l-4 border-blue-600">
                                 <div><div className="text-sm text-slate-400 font-bold">批次</div><div className="text-xl font-mono font-bold text-slate-800">{activeOrderGroup.id}</div></div>
-                                <div className="flex gap-3"><button onClick={(e) => handleDeleteOrderGroup(e, activeOrderGroup.id)} className="p-3 text-slate-300 hover:text-rose-500"><Trash2 size={24}/></button><button onClick={() => { setIsOrderEntryOpen(true); setEditingOrderItem(null); }} className="bg-emerald-600 text-white px-5 py-2 rounded-lg font-bold flex items-center text-lg"><Plus size={20} className="mr-1"/>新增</button></div>
+                                <div className="flex gap-2"><ActionButton icon={Trash2} label="刪除" onClick={(e:any) => handleDeleteOrderGroup(e, activeOrderGroup.id)} variant="outline" /><ActionButton icon={Plus} label="新增" onClick={() => { setIsOrderEntryOpen(true); setEditingOrderItem(null); }} variant="success" /></div>
                             </div>
                         </div>
                     )}
-
                     <div className="flex-1 overflow-y-auto px-2 pt-2 pb-24 space-y-2">
                         {activeOrderItems.length === 0 ? <div className="text-center py-10 text-slate-400">無訂單資料</div> : activeOrderItems.map(item => {
                             const product = productItems.find(p => p.groupId === item.productGroupId && p.id === item.productItemId);
@@ -1331,41 +1062,15 @@ const App: React.FC = () => {
                             const total = (product?.inputPrice || 0) * item.quantity;
                             return (
                                 <div key={item.id} className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 text-base relative">
-                                    {/* Row 1: Group Name + Actions */}
-                                    <div className="flex justify-between items-center mb-1">
-                                        <span className="text-sm font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{group?.name}</span>
-                                        <div className="flex gap-4">
-                                            <Edit size={20} className="text-blue-500" onClick={() => { setEditingOrderItem(item); setIsOrderEntryOpen(true); }} />
-                                            <Trash2 size={20} className="text-rose-500" onClick={(e) => handleDeleteOrderItem(e, item.id)} />
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Row 2: Product Name : Description ... Date */}
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div className="font-bold text-slate-800 text-lg leading-tight pr-2">
-                                            {cleanProductName(product?.name || '')} 
-                                            {item.description && <span className="text-slate-500 font-normal"> : {item.description}</span>}
-                                        </div>
-                                        <div className="text-sm text-slate-400 font-mono whitespace-nowrap pt-1">{item.date}</div>
-                                    </div>
-
-                                    {/* Row 3: Buyer ... Qty ... Price */}
-                                    <div className="bg-slate-50 p-2 rounded flex justify-between items-center">
-                                        <div className="font-bold text-blue-700 flex items-center gap-2 text-lg">
-                                            <User size={18}/> {item.buyer}
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="font-bold text-slate-600 bg-white px-2 rounded shadow-sm text-lg">x{item.quantity}</span>
-                                            <span className="font-mono font-bold text-emerald-600 text-xl">{formatCurrency(total)}</span>
-                                        </div>
-                                    </div>
-
+                                    <div className="flex justify-between items-center mb-1"><span className="text-sm font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{group?.name}</span><div className="flex gap-4"><Edit size={20} className="text-blue-500" onClick={() => { setEditingOrderItem(item); setIsOrderEntryOpen(true); }} /><Trash2 size={20} className="text-rose-500" onClick={(e) => handleDeleteOrderItem(e, item.id)} /></div></div>
+                                    <div className="flex justify-between items-start mb-1"><div className="font-bold text-slate-800 text-lg leading-tight pr-2">{cleanProductName(product?.name || '')} {item.description && <span className="text-slate-500 font-normal"> : {item.description}</span>}</div><div className="text-sm text-slate-400 font-mono whitespace-nowrap pt-1">{item.date}</div></div>
+                                    <div className="bg-slate-50 p-2 rounded flex justify-between items-center"><div className="font-bold text-blue-700 flex items-center gap-2 text-lg"><User size={18}/> {item.buyer}</div><div className="flex items-center gap-3"><span className="font-bold text-slate-600 bg-white px-2 rounded shadow-sm text-lg">x{item.quantity}</span><span className="font-mono font-bold text-emerald-600 text-xl">{formatCurrency(total)}</span></div></div>
                                     {item.remarks && <div className="mt-2 text-amber-600 text-sm border-t border-slate-100 pt-2 font-bold">備註: {item.remarks}</div>}
                                 </div>
                             )
                         })}
                     </div>
-                    {showNewOrderModal && <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"><div className="bg-white p-6 rounded-lg w-full max-w-sm"><h3 className="font-bold mb-4 text-xl">建立批次</h3><div className="flex gap-2 mb-4"><select className="border p-3 rounded-lg flex-1 text-lg" value={newOrderDate.year} onChange={e => setNewOrderDate({...newOrderDate, year: +e.target.value})}><option value="2025">2025</option><option value="2026">2026</option></select><select className="border p-3 rounded-lg flex-1 text-lg" value={newOrderDate.month} onChange={e => setNewOrderDate({...newOrderDate, month: +e.target.value})}>{Array.from({length:12},(_,i)=>i+1).map(m=><option key={m} value={m}>{m}月</option>)}</select></div><div className="flex justify-end gap-3"><button onClick={()=>setShowNewOrderModal(false)} className="px-5 py-3 text-slate-500 font-bold text-lg">取消</button><button onClick={handleCreateOrderGroup} className="px-5 py-3 bg-blue-600 text-white rounded-lg font-bold text-lg">建立</button></div></div></div>}
+                    {showNewOrderModal && <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"><div className="bg-white p-6 rounded-lg w-full max-w-sm"><h3 className="font-bold mb-4 text-xl">建立批次</h3><div className="flex gap-2 mb-4"><select className="border p-3 rounded-lg flex-1 text-lg" value={newOrderDate.year} onChange={e => setNewOrderDate({...newOrderDate, year: +e.target.value})}><option value="2025">2025</option><option value="2026">2026</option></select><select className="border p-3 rounded-lg flex-1 text-lg" value={newOrderDate.month} onChange={e => setNewOrderDate({...newOrderDate, month: +e.target.value})}>{Array.from({length:12},(_,i)=>i+1).map(m=><option key={m} value={m}>{m}月</option>)}</select></div><div className="flex justify-end gap-3"><ActionButton icon={X} label="取消" onClick={()=>setShowNewOrderModal(false)} variant="outline" /><ActionButton icon={Check} label="建立" onClick={handleCreateOrderGroup} /></div></div></div>}
                     {isOrderEntryOpen && <OrderEntryModal />}
                 </div>
             )}
@@ -1391,12 +1096,12 @@ const App: React.FC = () => {
         </div>
 
         <div className="bg-blue-900 border-t border-blue-800 flex justify-around items-center pb-safe shadow-2xl shrink-0 z-50 text-white h-20">
-            <NavButton id="products" label="產品管理" icon={Package} />
-            <NavButton id="orders" label="訂單管理" icon={ShoppingCart} />
-            <NavButton id="details" label="購買明細" icon={List} />
-            <NavButton id="analysis" label="分析資料" icon={BarChart2} />
-            <NavButton id="deposits" label="預收款項" icon={Wallet} />
-            <NavButton id="income" label="收支計算" icon={Calculator} />
+            <NavButton id="products" label="產品" icon={Package} />
+            <NavButton id="orders" label="訂單" icon={ShoppingCart} />
+            <NavButton id="details" label="明細" icon={List} />
+            <NavButton id="analysis" label="分析" icon={BarChart2} />
+            <NavButton id="deposits" label="預收" icon={Wallet} />
+            <NavButton id="income" label="收支" icon={Calculator} />
         </div>
     </div>
   );
