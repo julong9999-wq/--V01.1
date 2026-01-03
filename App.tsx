@@ -26,7 +26,7 @@ const DEFAULT_INCOME_DATA = {
     intlShipping: 0,
     dadReceivable: 0,
     paymentNote: '',
-    status: 'preorder' // 'preorder' (Red), 'processing' (Green), 'closed' (Yellow)
+    status: 'processing' // Default changed to 'processing' (Green) as requested
 };
 
 // --- UI Components ---
@@ -76,23 +76,26 @@ const OrderBatchButton = ({ id, active, onClick }: any) => (
     </button>
 );
 
-// 3. Income Field Component
+// 3. Income Field Component (Optimized for 10px label / 14px thin content)
 const IncomeField = ({ label, value, isInput = false, onChange, colorClass = "text-slate-700", prefix = "" }: any) => (
   <div className="flex flex-col w-full">
-    <span className="text-sm font-bold text-slate-500 ml-1 mb-1">{label}</span>
-    <div className={`relative flex items-center px-2 h-11 rounded-lg border-2 ${isInput ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'} overflow-hidden w-full`}>
+    {/* Label: 10px gray thin */}
+    <span className="text-[10px] font-light text-slate-400 ml-1 mb-0.5">{label}</span>
+    <div className={`relative flex items-center px-2 h-9 rounded-lg border ${isInput ? 'bg-white border-blue-200' : 'bg-slate-50 border-slate-100'} overflow-hidden w-full`}>
        {isInput ? (
          <input 
             type={typeof value === 'number' ? 'number' : 'text'}
             inputMode={typeof value === 'number' ? 'decimal' : 'text'} 
             step="any" 
-            className={`w-full bg-transparent outline-none font-mono font-bold text-lg text-right ${colorClass}`} 
+            // Input: 14px (text-sm) font-light
+            className={`w-full bg-transparent outline-none font-mono font-light text-sm text-right ${colorClass}`} 
             value={value} 
             onChange={onChange} 
             onFocus={(e) => e.target.select()} 
          />
        ) : (
-         <div className={`w-full font-mono font-bold text-lg text-right truncate ${colorClass}`}>{prefix}{value}</div>
+         // Display: 14px (text-sm) font-light
+         <div className={`w-full font-mono font-light text-sm text-right truncate ${colorClass}`}>{prefix}{value}</div>
        )}
     </div>
   </div>
@@ -400,7 +403,8 @@ const App: React.FC = () => {
         cardFee: parseFloat(String(incomeData.cardFee)) || 0,
         intlShipping: parseFloat(String(incomeData.intlShipping)) || 0,
         dadReceivable: parseFloat(String(incomeData.dadReceivable)) || 0,
-        paymentNote: incomeData.paymentNote || ''
+        paymentNote: incomeData.paymentNote || '',
+        status: incomeData.status || 'processing' // Save status as well
     };
     await setDoc(doc(db, 'incomeSettings', selectedOrderGroup), dataToSave);
     alert('儲存成功');
@@ -838,7 +842,7 @@ const App: React.FC = () => {
         const cardCharge = settings.cardCharge || 0;
         const cardFee = settings.cardFee || 0;
         const intlShip = settings.intlShipping || 0;
-        const status = settings.status || 'preorder'; 
+        const status = settings.status || 'processing'; 
 
         let totalItemSales = 0;
         itemsInBatch.forEach(item => {
@@ -856,13 +860,6 @@ const App: React.FC = () => {
     const totalIncome = batchStats.reduce((acc, cur) => acc + cur.income, 0);
     const totalExpense = batchStats.reduce((acc, cur) => acc + cur.expense, 0);
     const totalProfit = batchStats.reduce((acc, cur) => acc + cur.profit, 0);
-
-    const handleToggleStatus = async (groupId: string, currentStatus: string) => {
-        const statusOrder = ['preorder', 'processing', 'closed']; 
-        const nextIndex = (statusOrder.indexOf(currentStatus) + 1) % 3;
-        const nextStatus = statusOrder[nextIndex];
-        await setDoc(doc(db, 'incomeSettings', groupId), { status: nextStatus }, { merge: true });
-    };
 
     const getStatusColor = (status: string) => {
         switch(status) {
@@ -915,9 +912,7 @@ const App: React.FC = () => {
                             <tr key={batch.id} className="hover:bg-slate-50">
                                 <td className="p-3 text-center">
                                     <div 
-                                        onClick={() => handleToggleStatus(batch.id, batch.status)}
-                                        className={`w-5 h-5 rounded-full mx-auto cursor-pointer shadow-md transition-all hover:scale-110 active:scale-95 border-2 border-white ${getStatusColor(batch.status)}`}
-                                        title="切換狀態: 紅(預購) -> 綠(進行) -> 黃(結案)"
+                                        className={`w-5 h-5 rounded-full mx-auto shadow-md border-2 border-white ${getStatusColor(batch.status)}`}
                                     />
                                 </td>
                                 <td className={`p-3 font-mono ${subTableStyle}`}>{batch.id}</td>
@@ -1002,6 +997,8 @@ const App: React.FC = () => {
 
   const renderIncomeView = () => {
     const { totalJpy, totalDomestic, totalHandling, totalSales, avgRateCost, netProfit, profitRate, cardFeeRate } = incomeStats;
+    const currentStatus = incomeData.status || 'processing';
+
     return (
         <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
              <Header title="收支計算" showOrderSelector={true} actions={
@@ -1012,6 +1009,32 @@ const App: React.FC = () => {
                 </>
              }/>
              <div className="flex-1 p-2 flex flex-col gap-2 overflow-hidden justify-start">
+                
+                {/* Status Selector */}
+                <div className="bg-white p-2 rounded-xl border border-slate-300 shadow-sm flex items-center gap-3 shrink-0">
+                    <span className="text-[10px] font-light text-slate-400 ml-1">狀態</span>
+                    <div className="flex gap-2 flex-1">
+                        <button 
+                            onClick={() => setIncomeData({...incomeData, status: 'processing'})}
+                            className={`flex-1 h-8 rounded-lg text-sm font-light transition-all flex items-center justify-center gap-1 ${currentStatus === 'processing' ? 'bg-emerald-500 text-white shadow-sm font-normal' : 'text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+                        >
+                            {currentStatus === 'processing' && <Check size={14} />} 進行
+                        </button>
+                        <button 
+                            onClick={() => setIncomeData({...incomeData, status: 'preorder'})}
+                            className={`flex-1 h-8 rounded-lg text-sm font-light transition-all flex items-center justify-center gap-1 ${currentStatus === 'preorder' ? 'bg-rose-500 text-white shadow-sm font-normal' : 'text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+                        >
+                            {currentStatus === 'preorder' && <Check size={14} />} 預購
+                        </button>
+                        <button 
+                            onClick={() => setIncomeData({...incomeData, status: 'closed'})}
+                            className={`flex-1 h-8 rounded-lg text-sm font-light transition-all flex items-center justify-center gap-1 ${currentStatus === 'closed' ? 'bg-yellow-400 text-blue-900 shadow-sm font-normal' : 'text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+                        >
+                             {currentStatus === 'closed' && <Check size={14} />} 結案
+                        </button>
+                    </div>
+                </div>
+
                 <div className="bg-white p-2.5 rounded-xl border border-slate-300 shadow-sm flex flex-col gap-2 shrink-0">
                     <div className="grid grid-cols-3 gap-2"><IncomeField label="日幣總計" value={formatCurrency(totalJpy)} /><IncomeField label="境內運總計" value={formatCurrency(totalDomestic)} /><IncomeField label="手續費總計" value={formatCurrency(totalHandling)} /></div>
                     <div className="grid grid-cols-2 gap-2"><IncomeField label="商品收入" value={formatCurrency(totalSales)} colorClass="text-blue-600" /><IncomeField label="包材收入 (輸入)" value={incomeData.packagingRevenue} isInput onChange={(e:any) => setIncomeData({...incomeData, packagingRevenue: e.target.value})} colorClass="text-blue-600" /></div>
