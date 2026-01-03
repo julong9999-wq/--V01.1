@@ -728,7 +728,7 @@ const App: React.FC = () => {
     });
 
     const sortedGroupIds = Array.from(groupMap.keys()).sort();
-    const subTableStyle = "text-slate-500 font-normal text-base";
+    const subTableStyle = "text-slate-500 font-light text-base";
 
     return (
         <div className="flex-1 overflow-hidden flex flex-col bg-white">
@@ -783,12 +783,12 @@ const App: React.FC = () => {
                     </tbody>
                     <tfoot className="bg-blue-100 text-blue-900 sticky bottom-0 z-10 shadow-lg border-t-2 border-blue-200">
                         <tr>
-                            <td className="p-3 font-bold text-xl text-right">總計</td>
-                            <td className="p-3 text-right font-bold font-mono text-xl">{totalQty}</td>
+                            <td className="p-3 font-bold text-sm text-right">總計</td>
+                            <td className="p-3 text-right font-bold font-mono text-sm">{totalQty}</td>
                             {analysisMode === 'expenditure' ? (
-                                <><td className="p-3 text-right font-bold font-mono text-xl text-blue-900">¥{grandTotalJPY}</td><td className="p-3 text-right font-bold font-mono text-xl text-blue-900">¥{grandTotalDomestic}</td></>
+                                <><td className="p-3 text-right font-bold font-mono text-sm text-blue-900">¥{grandTotalJPY}</td><td className="p-3 text-right font-bold font-mono text-sm text-blue-900">¥{grandTotalDomestic}</td></>
                             ) : (
-                                <td className="p-3 text-right font-bold font-mono text-2xl text-blue-900">{formatCurrency(grandTotalTWD)}</td>
+                                <td className="p-3 text-right font-bold font-mono text-sm text-blue-900">{formatCurrency(grandTotalTWD)}</td>
                             )}
                         </tr>
                     </tfoot>
